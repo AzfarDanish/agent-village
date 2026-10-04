@@ -156,7 +156,12 @@ async function refresh(){
   }catch(error){if(requestScope===scope){$('connection').textContent='Disconnected';notice(error.message);}}
 }
 function scopeChange(){scope++;snapshot=null;activeJob=null;lastJob=null;conversationKey='';firstPoll=true;clearBubbles();resetConversation();$('history').replaceChildren();$('memories').replaceChildren();$('artifact-text').textContent='Select an artifact to read.';world?.exitOffice();world?.setState({});notice('');save('repo',$('repo').value);save('engine',$('engine').value);refresh();}
-$('engine').onchange=()=>{modelOptions();scopeChange();};$('repo').onchange=scopeChange;
+let villageConfig=null;
+function engineNotice(){
+  const avail=villageConfig?.engines?.[$('engine').value];
+  if(avail&&!avail.command)notice('Engine not found on this machine: '+avail.hint);
+}
+$('engine').onchange=()=>{modelOptions();engineNotice();scopeChange();};$('repo').onchange=scopeChange;
 $('model-provider').onchange=()=>{save('provider-'+$('engine').value,$('model-provider').value);filterModels();};
 $('model-picker').onchange=()=>{$('model').value=$('model-picker').value;save('model-'+$('engine').value,$('model').value);modelWarning();};
 $('model').onchange=()=>{save('model-'+$('engine').value,$('model').value);filterModels();};
@@ -185,7 +190,13 @@ $('folder-select').onclick=()=>{if(!folderPath)return;addRepo(folderPath);$('rep
 function addRepo(path){if(![...$('repo').options].some(o=>o.value===path)){const opt=node('option',path.split('/').pop()||path);opt.value=path;opt.title=path;$('repo').append(opt);}}
 async function init(){
   setView(mainView);
-  try{const data=await api('repos');data.repos.forEach(addRepo);const previous=saved('repo');if(previous)addRepo(previous);if(!$('repo').options.length)addRepo(data.home);$('repo').value=previous||data.repos[0]||data.home;await refresh();}
+  try{
+    villageConfig=await api('config');
+    if(!saved('engine')&&['opencode','hermes','llm'].includes(villageConfig.defaults?.engine))$('engine').value=villageConfig.defaults.engine;
+    if(villageConfig.defaults?.role&&roles.includes(villageConfig.defaults.role))selectRole(villageConfig.defaults.role);
+    engineNotice();
+  }catch(error){/* servers without /config: carry on with built-ins */}
+  try{const data=await api('repos');data.repos.forEach(addRepo);const previous=saved('repo');const configured=villageConfig?.defaults?.repo;if(previous)addRepo(previous);if(configured)addRepo(configured);if(!$('repo').options.length)addRepo(data.home);$('repo').value=previous||configured||data.repos[0]||data.home;await refresh();}
   catch(error){notice(error.message);}
   try{const data=await api('models');catalog=data.models;modelOptions();if(data.warnings.length)notice(data.warnings.join(' · '));}catch(error){notice(error.message);modelOptions();}
   async function tick(){await refresh();setTimeout(tick,1800);}setTimeout(tick,1800);

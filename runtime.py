@@ -11,11 +11,12 @@ import uuid
 from pathlib import Path
 from urllib.request import Request, urlopen
 
+import config as village_config
+
 HOME = Path.home()
 HERE = Path(__file__).resolve().parent
 DATA = HERE / 'runs'
-OPENCODE = '/opt/homebrew/bin/opencode'
-HERMES = str(HOME / '.local/bin/hermes')
+IS_WINDOWS = os.name == 'nt'
 ROLES = ['ARCHITECT', 'CODER', 'TESTER', 'MANAGER']
 ROLE_PROMPTS = {
     'ARCHITECT': 'Inspect the project and produce a concrete plan and acceptance criteria. Do not change application code.',
@@ -70,7 +71,10 @@ def catalog():
             return copy.deepcopy(MODEL_CACHE)
     models, warnings = [], []
     try:
-        result = subprocess.run([OPENCODE, 'models'], capture_output=True, text=True, timeout=25)
+        resolved = village_config.resolve_engine('opencode')
+        if not resolved['command']:
+            raise RuntimeError('OpenCode CLI not found. ' + village_config.INSTALL_HINTS['opencode'])
+        result = subprocess.run([resolved['command'], 'models'], capture_output=True, text=True, timeout=25)
         if result.returncode:
             raise RuntimeError('OpenCode model command failed')
         for line in result.stdout.splitlines():
@@ -79,7 +83,7 @@ def catalog():
     except (OSError, subprocess.TimeoutExpired, RuntimeError) as exc:
         warnings.append(str(exc))
     try:
-        cache = json.loads((HOME / '.hermes/provider_models_cache.json').read_text())
+        cache = json.loads((village_config.hermes_home() / 'provider_models_cache.json').read_text())
         for provider, entry in cache.items():
             for model in entry.get('models', []):
                 if isinstance(model, str):
@@ -92,18 +96,44 @@ def catalog():
         return copy.deepcopy(MODEL_CACHE)
 
 
+def engine_command(name):
+    """Resolved CLI for an engine, or a loud error telling the user how to fix it."""
+    resolved = village_config.resolve_engine(name)
+    if not resolved['command']:
+        raise ValueError(
+            f'{name} CLI not found. ' + village_config.INSTALL_HINTS[name]
+            + ' See docs/engines.md.')
+    extra = list(village_config.get()['engines'].get(name, {}).get('extra_args') or [])
+    return [resolved['command']] + extra
+
+
 def command(job, prompt):
     model = job['model']
     if job['engine'] == 'opencode':
-        args = [OPENCODE, 'run', '--pure', '--format', 'json', '--dir', job['repo']]
+        args = engine_command('opencode') + ['run', '--pure', '--format', 'json', '--dir', job['repo']]
         if model:
             args += ['--model', model]
         return args + ['--', prompt]
-    args = [HERMES, 'chat', '--format', 'stream-json', '--in', job['repo'], '--max-turns', '60']
+    args = engine_command('hermes') + ['chat', '--format', 'stream-json', '--in', job['repo'], '--max-turns', '60']
     if model:
         provider, name = model.split('/', 1)
         args += ['--provider', provider, '--model', name]
     return args + ['-q', prompt]
+
+
+def _spawn(args, **kwargs):
+    if IS_WINDOWS:
+        kwargs['creationflags'] = kwargs.get('creationflags', 0) | subprocess.CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs['start_new_session'] = True
+    return subprocess.Popen(args, **kwargs)
+
+
+def _kill(process, hard=False):
+    if IS_WINDOWS:
+        process.kill() if hard else process.terminate()
+    else:
+        os.killpg(process.pid, signal.SIGKILL if hard else signal.SIGTERM)
 
 
 def provider_error(error):
@@ -161,9 +191,9 @@ def run_cli(job, prompt):
     with LOCK:
         if job['status'] == 'cancelled':
             return ''
-        process = subprocess.Popen(command(job, prompt), cwd=job['repo'], env=os.environ.copy(),
-                                   stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   text=True, start_new_session=True, bufsize=1)
+        process = _spawn(command(job, prompt), cwd=job['repo'], env=os.environ.copy(),
+                         stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         text=True, bufsize=1)
         PROCESSES[job['id']] = process
     errors, output = [], []
     def drain():
@@ -172,7 +202,7 @@ def run_cli(job, prompt):
             del errors[:-40]
     reader = threading.Thread(target=drain, daemon=True)
     reader.start()
-    timer = threading.Timer(1800, lambda: terminate(job['id']))
+    timer = threading.Timer(village_config.get()['run_timeout_s'], lambda: terminate(job['id']))
     timer.start()
     try:
         for line in process.stdout:
@@ -191,11 +221,11 @@ def run_cli(job, prompt):
     finally:
         timer.cancel()
         if process.poll() is None:
-            os.killpg(process.pid, signal.SIGTERM)
+            _kill(process)
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                os.killpg(process.pid, signal.SIGKILL)
+                _kill(process, hard=True)
                 process.wait()
         process.stdout.close()
         process.stderr.close()
@@ -270,8 +300,11 @@ def submit(body):
         raise ValueError('Unknown role')
     message = body.get('message', '').strip()
     model = body.get('model', '').strip()
-    if not message or len(message) > 30000:
-        raise ValueError('Enter a task of 1–30,000 characters')
+    limit = village_config.get()['max_message_chars']
+    if not message or len(message) > limit:
+        raise ValueError(f'Enter a task of 1–{limit:,} characters')
+    if engine != 'llm':
+        engine_command(engine)  # fail fast with an install hint, before queueing
     if engine != 'llm' and model and '/' not in model:
         raise ValueError('Use a provider/model identifier')
     if engine == 'llm':
@@ -310,10 +343,10 @@ def terminate(job_id):
         job['status'] = 'cancelled'
         process = PROCESSES.get(job_id)
         if process and process.poll() is None:
-            os.killpg(process.pid, signal.SIGTERM)
+            _kill(process)
             def kill_later():
                 if process.poll() is None:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    _kill(process, hard=True)
             threading.Timer(5, kill_later).start()
         event(job, 'Run stopped by user or time limit.', 'status')
 

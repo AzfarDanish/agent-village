@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "host": "127.0.0.1",
+  "port": 8787,
+  "defaults": {
+    "engine": "opencode",
+    "model": "",
+    "role": "CODER",
+    "repo": ""
+  },
+  "project_roots": ["~/Documents/GitHub"],
+  "run_timeout_s": 1800,
+  "max_message_chars": 30000,
+  "engines": {
+    "opencode": {"command": "", "extra_args": []},
+    "hermes": {"command": "", "extra_args": []}
+  },
+  "paths": {
+    "hermes_home": "",
+    "opencode_db": ""
+  }
+}

@@ -9,11 +9,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+import config as village_config
 import runtime
 from legacy import read_artifact, read_memories, read_team_state, parse_talks
 
 HOME = Path.home()
-WEB = Path(__file__).resolve().parent / 'web'
+HERE = Path(__file__).resolve().parent
+WEB = HERE / 'web'
 
 
 def folder(value):
@@ -33,7 +35,7 @@ def folders(value):
 
 
 def opencode_history(repo):
-    db = HOME / '.local/share/opencode/opencode.db'
+    db = village_config.opencode_db()
     if not db.exists():
         return [], 'No OpenCode history database found'
     try:
@@ -110,10 +112,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(runtime.catalog())
             if url.path == '/api/village/folders':
                 return self.send(folders(get('path')))
+            if url.path == '/api/village/config':
+                return self.send(village_config.public_config())
             if url.path == '/api/village/repos':
-                base = HOME / 'Documents/GitHub'
-                repos = [str(p) for p in sorted(base.iterdir()) if p.is_dir() and not p.name.startswith('.')] if base.exists() else []
-                return self.send({'repos': repos, 'home': str(HOME)})
+                repos = []
+                for root in village_config.get()['project_roots']:
+                    base = Path(root).expanduser()
+                    if base.is_dir():
+                        repos += [str(p) for p in sorted(base.iterdir())
+                                  if p.is_dir() and not p.name.startswith('.')]
+                return self.send({'repos': repos[:50], 'home': str(HOME)})
             if url.path == '/api/village/state':
                 return self.send(state(folder(get('repo')), get('engine', 'opencode')))
             if url.path == '/api/village/artifacts':
@@ -149,10 +157,18 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--port', type=int, default=8787)
-    parser.add_argument('--host', choices=['127.0.0.1'], default='127.0.0.1')
+    parser = argparse.ArgumentParser(description='Local 3D agent village. See README.md and docs/.')
+    parser.add_argument('--port', type=int, default=None)
+    parser.add_argument('--host', choices=['127.0.0.1'], default=None)
+    parser.add_argument('--config', default=None, help='Path to village.json (default: village.json next to server.py)')
+    parser.add_argument('--print-config', action='store_true', help='Print resolved config and exit')
     args = parser.parse_args()
+    cfg = village_config.load(args.config)
+    args.host = args.host or cfg['host']
+    args.port = args.port or cfg['port']
+    if args.print_config:
+        print(json.dumps(village_config.public_config(), indent=2))
+        raise SystemExit(0)
     runtime.load_jobs()
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f'Village: http://{args.host}:{args.port}', flush=True)

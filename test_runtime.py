@@ -45,6 +45,21 @@ class VillageTests(unittest.TestCase):
             runtime.stream_event({}, json.dumps({'type': 'error', 'error': error}))
         self.assertNotIn('responseHeaders', runtime.provider_error(error))
 
+    def test_config_defaults_and_version_guard(self):
+        import config as village_config
+        try:
+            cfg = village_config.load(str(self.root / 'nonexistent.json'))
+            self.assertEqual(cfg['version'], village_config.CONFIG_VERSION)
+            self.assertEqual(cfg['port'], 8787)
+            bad = self.root / 'village.json'
+            bad.write_text('{"version": 999}')
+            with self.assertRaises(ValueError):
+                village_config.load(str(bad))
+            missing = village_config.resolve_engine('village-no-such-engine-xyz')
+            self.assertIsNone(missing['command'])
+        finally:
+            village_config.load()
+
     def test_tool_results_are_separate_from_messages(self):
         job = {'id': 'tool-test', 'current_agent': 'TESTER', 'events': []}
         runtime.stream_event(job, json.dumps({'type': 'tool_result', 'name': 'bash', 'output': '3 checks passed'}))

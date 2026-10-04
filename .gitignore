@@ -4,3 +4,5 @@ server.log
 runs/
 .playwright-cli/
 .DS_Store
+# Local config (never commit). Copy village.example.json to start.
+village.json

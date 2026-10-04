@@ -1,3 +1,6 @@
 #!/bin/sh
-# Start shared village (Hermes + OpenCode). Open http://127.0.0.1:8787
-exec python3 "$HOME/.hermes/village/server.py" --port 8787 --host 127.0.0.1
+# Start the village from anywhere inside a clone. Open the printed URL.
+# Usage: sh start.sh [--port 8787] [--config /path/to/village.json]
+set -e
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+exec python3 "$ROOT/server.py" "$@"

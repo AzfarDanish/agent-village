@@ -15,6 +15,16 @@ MEM_DIR = HERMES / "memories"
 HERE = Path(__file__).resolve().parent
 WEB = HERE / "web"
 
+try:
+    import config as _village_config
+
+    def _mem_dir():
+        override = _village_config.get()['paths'].get('hermes_home', '')
+        return Path(override).expanduser() / 'memories' if override else MEM_DIR
+except ImportError:  # used standalone without the new config module
+    def _mem_dir():
+        return MEM_DIR
+
 STATUS_TO_AGENT = {
     "architecting": "ARCHITECT",
     "implementing": "CODER",
@@ -133,7 +143,7 @@ def opencode_latest(limit_talks: int = 10):
 def read_memories():
     cards = []
     for name in ("MEMORY.md", "USER.md"):
-        p = MEM_DIR / name
+        p = _mem_dir() / name
         if p.exists():
             try:
                 entries = [e.strip() for e in p.read_text(encoding="utf-8-sig").split("\n§\n") if e.strip()]
