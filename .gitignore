@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+server.log
+runs/
+.playwright-cli/
+.DS_Store

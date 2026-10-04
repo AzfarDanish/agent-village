@@ -1,0 +1,36 @@
+async page => {
+  await page.reload();
+  await page.waitForFunction(()=>window.villageWorld);
+  await page.locator('#engine').selectOption('opencode');
+  await page.waitForFunction(()=>document.querySelector('#model-provider option[value="rapidscreen"]'));
+  await page.locator('#model-provider').selectOption('rapidscreen');
+  const models=await page.locator('#model-picker option').evaluateAll(list=>list.map(o=>o.value).filter(Boolean));
+  if(!models.length||models.some(m=>!m.startsWith('rapidscreen/')))throw Error('Provider filter failed');
+  await page.locator('#model-picker').selectOption('rapidscreen/gpt-5.4-mini');
+  if(await page.locator('#model').inputValue()!=='rapidscreen/gpt-5.4-mini')throw Error('Model selection not applied');
+  await page.locator('#model').fill('opencode/example-free');
+  if(!await page.locator('#model-warning').isVisible())throw Error('Free tier guidance missing');
+  await page.locator('#model').fill('rapidscreen/gpt-5.4-mini');
+  await page.locator('#model').dispatchEvent('change');
+  const canvas=await page.locator('#cv').boundingBox();
+  if(!await page.evaluate(()=>window.villageWorld.paused))await page.locator('#motion').click();
+  const house=await page.evaluate(()=>window.villageWorld.diagnostics().targets.find(t=>t.kind==='building'&&t.role==='CODER'));
+  await page.mouse.move(canvas.x+house.x,canvas.y+house.y);
+  await page.waitForFunction(()=>window.villageWorld.diagnostics().hovered?.kind==='building');
+  const label=await page.locator('#world-hover').textContent();
+  if(!label.includes('workshop')||!await page.evaluate(()=>window.villageWorld.diagnostics().outlineVisible))throw Error('House label/outline missing');
+  await page.mouse.move(5,5);
+  await page.locator('#motion').click();
+  const character=await page.evaluate(()=>window.villageWorld.diagnostics().targets.find(t=>t.kind==='character'&&t.role==='CODER'));
+  await page.mouse.move(canvas.x+character.x,canvas.y+character.y);
+  await page.waitForFunction(()=>window.villageWorld.diagnostics().hovered?.kind==='character');
+  await page.waitForTimeout(260);
+  const during=await page.evaluate(()=>window.villageWorld.diagnostics().charactersState.find(v=>v.role==='CODER'));
+  if(Math.abs(during.heading-during.glanceTo)>.05)throw Error('Character did not glance at camera');
+  await page.waitForTimeout(800);
+  const after=await page.evaluate(()=>window.villageWorld.diagnostics().charactersState.find(v=>v.role==='CODER'));
+  if(after.glanceAt!==during.glanceAt||Math.abs(after.heading-after.facing)>.05)throw Error('Glance retriggered or did not return');
+  await page.mouse.move(5,5);
+  await page.waitForFunction(()=>!window.villageWorld.diagnostics().outlineVisible);
+  return {providerModels:models.length,houseLabel:label,glanceReturned:true,outlineCleared:true};
+}
