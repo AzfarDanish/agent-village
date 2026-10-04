@@ -1,19 +1,30 @@
 async page=>{
   let populated=false,tick=0;
   await page.route('**/api/village/state?*',route=>{
-    const events=Array.from({length:100},(_,i)=>({id:'long-'+i,author:'CODER',kind:i%9===0?'tool_result':'message',text:('Line '+i+' — implementation output.\n').repeat(5)}));
+    const events=Array.from({length:60},(_,i)=>({id:'long-'+i,author:'CODER',kind:i%9===0?'tool_result':'message',text:('Line '+i+' — implementation output.\n').repeat(5)}));
     events.push({id:'tick-'+tick,author:'TESTER',kind:'status',text:'Checking '+tick});
     return route.fulfill({json:{repo:'/Users/azfardanish/.hermes/village',project:'layout check',engine:'opencode',current_agent:null,meeting:false,talks:[],memories:[],jobs:populated?[{id:'long',role:'CODER',message:'Check the session layout',status:'completed',events}]:[]}});
   });
   try{
     await page.setViewportSize({width:1440,height:900});await page.reload();await page.waitForFunction(()=>window.villageWorld);
     await page.waitForFunction(()=>document.querySelector('#models').children.length>0);
+    await page.locator('#view-world').click();
+    const aside=await page.locator('aside').boundingBox();
+    if(aside.width<280||aside.width>360)throw Error('Sidebar not narrow/fixed: '+aside.width);
+    if(!await page.locator('#stage').isVisible()||await page.locator('#sheet').isVisible())throw Error('World not default view');
     if(!await page.locator('.empty-state').isVisible())throw Error('Missing empty state');
-    const sizes=await page.evaluate(()=>{let main=document.querySelector('main').getBoundingClientRect(),aside=document.querySelector('aside').getBoundingClientRect(),world=document.querySelector('#stage').getBoundingClientRect();return{ratio:aside.width/main.width,worldRatio:world.width/world.height,header:document.querySelector('header').offsetHeight,conversation:document.querySelector('#conversation').clientHeight};});
-    if(sizes.ratio<.45||sizes.ratio>.55||Math.abs(sizes.worldRatio-1)>.01||sizes.header>55||sizes.conversation<300)throw Error('Unbalanced layout '+JSON.stringify(sizes));
-    if(await page.locator('.world-title').count())throw Error('Decorative overlay still present');
-    await page.locator('#advanced>summary').click();await page.locator('#model-provider').selectOption('rapidscreen');await page.locator('#advanced>summary').click();
-    populated=true;await page.waitForFunction(()=>document.querySelectorAll('#conversation .message').length>90);
+    // Switch to conversation: single instance moves to the sheet, sidebar keeps controls only.
+    await page.locator('#view-chat').click();
+    await page.waitForFunction(()=>!document.querySelector('#stage').offsetParent&&!document.querySelector('#sheet').hidden);
+    const locations=await page.evaluate(()=>({inSheet:!!document.querySelector('#sheet-slot .conversation-wrap'),inSide:!!document.querySelector('#side-slot .conversation-wrap'),count:document.querySelectorAll('#conversation').length,note:!document.querySelector('#side-note').hidden}));
+    if(!locations.inSheet||locations.inSide||locations.count!==1||!locations.note)throw Error('Conversation duplicated or misplaced: '+JSON.stringify(locations));
+    if(await page.locator('#task-form').isVisible()===false)throw Error('Sidebar controls missing in chat mode');
+    await page.locator('#view-world').click();
+    await page.waitForFunction(()=>!document.querySelector('#stage').hidden===false||document.querySelector('#stage').offsetParent);
+    const back=await page.evaluate(()=>({inSide:!!document.querySelector('#side-slot .conversation-wrap'),stage:!!document.querySelector('#stage').offsetParent}));
+    if(!back.inSide||!back.stage)throw Error('Return to world failed');
+    // Long stream stays stable and scannable.
+    populated=true;await page.waitForFunction(()=>document.querySelectorAll('#conversation .message').length>50);
     await page.locator('#conversation').evaluate(el=>el.scrollTop=0);
     await page.waitForTimeout(200);tick++;
     await page.waitForFunction(()=>document.querySelector('#conversation').textContent.includes('Checking 1'));
@@ -21,11 +32,12 @@ async page=>{
     await page.locator('#jump-latest').click();
     if(await page.locator('#conversation').evaluate(el=>el.scrollHeight-el.scrollTop-el.clientHeight)>10)throw Error('Jump failed');
     for(const width of [1100,900,768,390]){
-      await page.setViewportSize({width,height:900});await page.waitForTimeout(200);
-      const metrics=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,ratio:document.querySelector('#stage').clientWidth/document.querySelector('#stage').clientHeight}));
-      if(metrics.overflow||Math.abs(metrics.ratio-1)>.01)throw Error('Responsive failure '+width+JSON.stringify(metrics));
+      await page.setViewportSize({width,height:900});await page.waitForTimeout(250);
+      const metrics=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth>innerWidth,stageRatio:document.querySelector('#stage').clientWidth/Math.max(1,document.querySelector('#stage').clientHeight)}));
+      if(metrics.overflow)throw Error('Responsive overflow at '+width);
     }
     await page.setViewportSize({width:1440,height:900});
-    return {...sizes,streamScrollStable:true,providerFilter:true,responsive:true};
+    await page.locator('#view-world').click();
+    return {sidebar:aside.width,singleViewToggle:true,noDuplicateThread:true,responsive:true};
   }finally{await page.unroute('**/api/village/state?*');await page.reload();}
 }

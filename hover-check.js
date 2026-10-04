@@ -1,8 +1,10 @@
 async page => {
   await page.reload();
   await page.waitForFunction(()=>window.villageWorld);
+  await page.locator('#view-world').click();
   await page.locator('#engine').selectOption('opencode');
   await page.waitForFunction(()=>document.querySelector('#model-provider option[value="rapidscreen"]'));
+  await page.locator('#advanced>summary').click();
   await page.locator('#model-provider').selectOption('rapidscreen');
   const models=await page.locator('#model-picker option').evaluateAll(list=>list.map(o=>o.value).filter(Boolean));
   if(!models.length||models.some(m=>!m.startsWith('rapidscreen/')))throw Error('Provider filter failed');
@@ -18,7 +20,10 @@ async page => {
   await page.mouse.move(canvas.x+house.x,canvas.y+house.y);
   await page.waitForFunction(()=>window.villageWorld.diagnostics().hovered?.kind==='building');
   const label=await page.locator('#world-hover').textContent();
+  const frame=await page.evaluate(()=>window.villageWorld.diagnostics().hoverFrame);
   if(!label.includes('workshop')||!await page.evaluate(()=>window.villageWorld.diagnostics().outlineVisible))throw Error('House label/outline missing');
+  // Camera-facing silhouette only: back corner + its 3 edges hidden (9/12 edges, 7/8 corners).
+  if(frame.edges!==9||frame.corners!==7)throw Error('Back-side wireframe not hidden: '+JSON.stringify(frame));
   await page.mouse.move(5,5);
   await page.locator('#motion').click();
   const character=await page.evaluate(()=>window.villageWorld.diagnostics().targets.find(t=>t.kind==='character'&&t.role==='CODER'));

@@ -1,4 +1,4 @@
-# Little Works — 3D Agent Village
+# Little World — 3D Agent Village
 
 Open **http://127.0.0.1:8787**. Start with:
 
@@ -18,7 +18,11 @@ sh ~/.hermes/village/start.sh
 
 ## World
 
+Layout is a fixed 320px Mission Control sidebar plus one main view at a time: **Live world** (default) or **Conversation** (full main-area sheet). The toggle moves the single conversation thread between sidebar and sheet — never duplicated. Header is untouched.
+
 Click a house to enter its office; **Exit house** (or Escape) returns to your saved village camera. A short, reversible camera move and a soft transition connect the exterior and interior. Each office has a square tiled floor and only north/west walls, plus a desk, laptop, desktop computer, printer, picture, pencil, lamp and books. Architect is bright blue/paper, Coder dark amber/terminal, Tester plum/cool light, and Manager warm sage/oak. Furniture placement also varies.
+
+Exteriors are four distinct structures: a tall narrow drafting tower, a wide low workshop, a round observation tower with beacon, and a grand two-tier hall with a columned porch. Hover frames wrap the house structure only (no yard props) with chunky geometry edges, camera-facing side only — the back corner and its three edges stay hidden, for houses and characters alike.
 
 Active agents walk around the houses via the side paths, open a hinged door, cross the threshold and work inside. They leave through the door when finished. Open the office to see the worker at the desk. Pausing freezes world movement; reduced-motion mode directly presents the correct inside/outside state. Only one office is displayed at a time; all exterior hover behavior is disabled while it is open. Chunky hover frames use precise structure-only bounds, excluding plinths, flags and yard props.
 

@@ -39,35 +39,83 @@ export function createWorld(onSelect) {
   const plaza=mesh(new THREE.CylinderGeometry(2.05,2.05,.12,12),mat('#d5c4a2'),scene,0,.1,0);
   const table=mesh(new THREE.CylinderGeometry(.65,.65,.13,8),shared.wood,scene,0,.65,0);mesh(box(.2,.55,.2),shared.wood,scene,0,.32,0);
   for(let i=0;i<4;i++){let a=i*Math.PI/2;mesh(box(.55,.13,.3),shared.wood,scene,Math.cos(a)*1.15,.35,Math.sin(a)*1.15);}
-  const wind=[],smoke=[],lamps=[],pickables=[],villagers=[],houses=[],offices=new Map();
+  const wind=[],smoke=[],lamps=[],beacons=[],pickables=[],villagers=[],houses=[],offices=new Map();
+  // Four distinct silhouettes: tall tower, wide workshop, round lab, grand hall.
+  // Only walls/roof/door/porch live in `structure` (the hover bounds);
+  // plinth, windows, flags and yard props stay outside it.
+  const glassMat=mat('#829d9c');
+  function windowUnit(g,wx,wy,wz,ww,wh){
+    mesh(box(ww,wh,.07),glassMat,g,wx,wy,wz);
+    mesh(box(.045,wh+.04,.08),shared.cream,g,wx,wy,wz);
+    mesh(box(ww+.05,.04,.08),shared.cream,g,wx,wy,wz);
+    mesh(box(ww+.1,.1,.16),shared.wood,g,wx,wy-.06,wz-.04);
+  }
   function building(i){
     const [x,z]=HOMES[i],g=new THREE.Group();g.position.set(x,0,z);g.userData={role:ROLES[i],kind:'building',name:['Architect’s studio','Coder’s workshop','Tester’s lab','Manager’s hall'][i]};scene.add(g);pickables.push(g);
     const roofMaterial=mat(COLORS[i]);
     mesh(box(2.3,.17,2),mat('#bbb298'),g,0,.13,0);
     const structure=new THREE.Group();g.add(structure);
-    // Front wall leaves a real doorway; the plinth and yard props are outside structure bounds.
-    mesh(box(1.95,1.45,1.4),shared.cream,structure,0,.91,-.1);
-    mesh(box(.73,1.45,.2),shared.cream,structure,-.61,.91,.7);
-    mesh(box(.73,1.45,.2),shared.cream,structure,.61,.91,.7);
-    mesh(box(.5,.49,.2),shared.cream,structure,0,1.39,.7);
-    mesh(box(.5,1.02,.025),shared.dark,structure,0,.65,.63);
-    mesh(box(2.06,.15,1.72),shared.wood,structure,0,.31,0);
-    const roof=mesh(new THREE.ConeGeometry(1.75,1.04,4),roofMaterial,structure,0,2.12,0);roof.rotation.y=Math.PI/4;roof.scale.z=.88;
-    const hinge=new THREE.Group();hinge.position.set(-.24,.19,.84);g.add(hinge);
-    mesh(box(.48,.96,.06),shared.wood,hinge,.24,.48,0);
-    mesh(new THREE.SphereGeometry(.035,5,4),mat('#d9be71'),hinge,.38,.51,.045);
-    for(const wx of [-.64,.64]){mesh(box(.4,.44,.07),mat('#829d9c'),g,wx,1.01,.83);mesh(box(.045,.48,.08),shared.cream,g,wx,1.01,.88);mesh(box(.45,.035,.08),shared.cream,g,wx,1.01,.88);mesh(box(.5,.12,.2),shared.wood,g,wx,.72,.93);}
-    mesh(box(.25,.7,.3),mat('#c0a28b'),structure,.6,2.14,-.3);
+    const hinge=new THREE.Group();g.add(hinge);
+    const doorway=(w,h,dz)=>{mesh(box(w+.08,h+.08,.05),shared.wood,structure,0,h/2+.19,dz-.01);mesh(box(w,h,.04),shared.dark,structure,0,h/2+.19,dz);};
+    const doorLeaf=(w,h,dx,dz)=>{hinge.position.set(dx,.19,dz);mesh(box(w,h,.06),shared.wood,hinge,w/2,h/2,0);mesh(new THREE.SphereGeometry(.035,5,4),mat('#d9be71'),hinge,w-.1,.55,.045);};
+    const pyramid=(r,h,y)=>{const roof=mesh(new THREE.ConeGeometry(r,h,4),roofMaterial,structure,0,y,0);roof.rotation.y=Math.PI/4;roof.scale.z=.88;return roof;};
+    const pole=(px,py,pz,ph)=>{mesh(new THREE.CylinderGeometry(.025,.025,ph,6),shared.wood,g,px,py,pz);};
+    let lampPos,chimney=null;
+    if(i===0){
+      // Architect: tall narrow drafting tower with a steep spire.
+      mesh(box(1.62,.16,1.62),shared.wood,structure,0,.19,0);
+      mesh(box(1.5,2.1,1.4),shared.cream,structure,0,1.16,0);
+      doorway(.5,1.0,.7);doorLeaf(.48,.96,-.24,.74);
+      pyramid(1.3,1.5,2.96);
+      mesh(box(.22,.7,.22),mat('#c0a28b'),structure,.45,3.0,-.4);chimney={x:x+.45,y:3.4,z:z-.4};
+      for(const sx of [-1,1]){mesh(box(.05,.9,.34),glassMat,g,sx*.76,1.35,0);mesh(box(.06,.96,.05),shared.cream,g,sx*.76,1.35,.18);mesh(box(.06,.96,.05),shared.cream,g,sx*.76,1.35,-.18);}
+      windowUnit(g,0,1.78,.72,.4,.4);
+      mesh(box(.95,.08,.6),shared.wood,g,-1.35,.6,.9);mesh(box(.65,.02,.4),mat('#c8dde1'),g,-1.35,.66,.9);
+      lampPos=[.42,1.05,.82];pole(-1.0,1.05,-.3,1.5);
+      const flag=mesh(box(.46,.26,.025),roofMaterial,g,-.75,1.62,-.3);wind.push({node:flag,phase:i,flag:true});
+    }else if(i===1){
+      // Coder: wide low workshop with a broad shallow roof and tall chimney.
+      mesh(box(2.56,.14,1.86),shared.wood,structure,0,.2,0);
+      mesh(box(2.5,1.15,1.7),shared.cream,structure,0,.72,0);
+      doorway(.52,1.0,.85);doorLeaf(.5,.96,-.25,.89);
+      pyramid(1.75,.75,1.67);
+      mesh(box(.3,1.0,.3),mat('#c0a28b'),structure,.75,1.95,-.45);chimney={x:x+.75,y:2.5,z:z-.45};
+      windowUnit(g,-.82,.85,.86,.44,.44);windowUnit(g,.82,.85,.86,.44,.44);
+      mesh(box(.05,.5,.3),glassMat,g,1.26,.75,0);
+      mesh(box(.8,.55,.5),shared.wood,g,1.75,.3,.6);mesh(box(.5,.34,.12),shared.dark,g,1.75,.75,.6);mesh(box(.39,.24,.13),mat('#9ccbb1'),g,1.75,.75,.61);
+      lampPos=[.5,1.05,.97];pole(-1.35,1.15,-.4,1.6);
+      const flag=mesh(box(.5,.28,.025),roofMaterial,g,-1.08,1.78,-.4);wind.push({node:flag,phase:i,flag:true});
+    }else if(i===2){
+      // Tester: round observation tower with a conical cap and beacon.
+      mesh(new THREE.CylinderGeometry(1.12,1.12,.14,10),shared.wood,structure,0,.2,0);
+      mesh(new THREE.CylinderGeometry(1.02,1.08,1.7,10),shared.cream,structure,0,.95,0);
+      doorway(.5,1.0,1.0);doorLeaf(.48,.96,-.24,1.04);
+      mesh(new THREE.ConeGeometry(1.2,1.0,6),roofMaterial,structure,0,2.3,0);
+      const beacon=mesh(new THREE.SphereGeometry(.09,6,5),mat('#ffd166',{emissive:'#ffb347',emissiveIntensity:.3}),structure,0,2.86,0);beacons.push(beacon);
+      for(const sx of [-.55,.55]){const ring=mesh(new THREE.TorusGeometry(.17,.035,5,10),shared.cream,g,sx,1.3,.86);mesh(new THREE.CylinderGeometry(.15,.15,.06,8),glassMat,g,sx,1.3,.86).rotation.x=Math.PI/2;ring.position.z=.87;}
+      mesh(new THREE.CylinderGeometry(.27,.35,.55,6),mat('#b49abe'),g,-1.5,.4,.3);mesh(new THREE.ConeGeometry(.4,.7,6),roofMaterial,g,-1.5,1.02,.3);
+      lampPos=[.45,1.05,1.0];pole(1.25,1.0,-.5,1.4);
+      const flag=mesh(box(.44,.25,.025),roofMaterial,g,1.5,1.55,-.5);wind.push({node:flag,phase:i,flag:true});
+    }else{
+      // Manager: grand double-height hall, two-tier roof, columned porch.
+      mesh(box(2.42,.16,1.94),shared.wood,structure,0,.2,0);
+      mesh(box(2.3,1.8,1.9),shared.cream,structure,0,1.04,0);
+      doorway(.56,1.1,.95);doorLeaf(.54,1.06,-.27,.99);
+      pyramid(1.62,.8,2.34);
+      mesh(box(1.05,.5,.95),shared.cream,structure,0,2.99,0);
+      pyramid(0.92,.62,3.55);
+      for(const sx of [-.95,.95])mesh(box(.16,1.0,.16),shared.wood,structure,sx,.5,1.15);
+      mesh(box(2.3,.12,.6),shared.wood,structure,0,1.06,1.1);
+      windowUnit(g,-.82,1.25,.96,.44,.6);windowUnit(g,.82,1.25,.96,.44,.6);
+      const clock=mesh(new THREE.CylinderGeometry(.24,.24,.07,12),shared.cream,g,0,1.62,.97);clock.rotation.x=Math.PI/2;mesh(box(.02,.19,.08),shared.dark,g,0,1.68,1.01);
+      mesh(box(1.1,.5,.5),shared.wood,g,1.65,.3,.4);
+      mesh(box(.28,.8,.28),mat('#c0a28b'),structure,-.8,2.3,-.5);chimney={x:x-.8,y:2.75,z:z-.5};
+      lampPos=[.55,1.1,1.05];pole(-1.35,1.2,-.5,1.7);
+      const flag=mesh(box(.5,.28,.025),roofMaterial,g,-1.08,1.9,-.5);wind.push({node:flag,phase:i,flag:true});
+    }
     houses.push({group:g,structure,hinge,door:0});
-    const lamp=mesh(new THREE.SphereGeometry(.09,6,5),mat('#f5d485',{emissive:'#f6b851',emissiveIntensity:.2}),g,.37,1,.96);lamps.push(lamp);
-    // Distinct workspaces: blueprints, workbench, test tower and clock hall.
-    if(i===0){mesh(box(.95,.08,.6),shared.wood,g,-.8,.6,1.5);mesh(box(.65,.02,.4),mat('#c8dde1'),g,-.8,.66,1.5);}
-    if(i===1){mesh(box(.8,.55,.5),shared.wood,g,1.4,.3,.3);mesh(box(.5,.34,.12),shared.dark,g,1.4,.75,.3);mesh(box(.39,.24,.13),mat('#9ccbb1'),g,1.4,.75,.31);}
-    if(i===2){mesh(new THREE.CylinderGeometry(.27,.35,.55,6),mat('#b49abe'),g,-1.35,.4,.4);mesh(new THREE.ConeGeometry(.4,.7,6),roofMaterial,g,-1.35,1.02,.4);}
-    if(i===3){const clock=mesh(new THREE.CylinderGeometry(.24,.24,.07,12),shared.cream,g,0,1.74,.9);clock.rotation.x=Math.PI/2;mesh(box(.02,.19,.08),shared.dark,g,0,1.8,.94);}
-    mesh(new THREE.CylinderGeometry(.025,.025,1.45,6),shared.wood,g,-1.3,1.4,-.3);
-    const flag=mesh(box(.5,.28,.025),roofMaterial,g,-1.03,1.9,-.3);wind.push({node:flag,phase:i,flag:true});
-    for(let k=0;k<4;k++){const p=mesh(new THREE.IcosahedronGeometry(.13,0),mat('#f6f1e3',{transparent:true,opacity:.4,depthWrite:false}),scene,x+.6,2.7,z-.3);smoke.push({node:p,x:x+.6,z:z-.3,phase:k/4+i*.1});}
+    const lamp=mesh(new THREE.SphereGeometry(.09,6,5),mat('#f5d485',{emissive:'#f6b851',emissiveIntensity:.2}),g,lampPos[0],lampPos[1],lampPos[2]);lamps.push(lamp);
+    if(chimney)for(let k=0;k<4;k++){const p=mesh(new THREE.IcosahedronGeometry(.13,0),mat('#f6f1e3',{transparent:true,opacity:.4,depthWrite:false}),scene,chimney.x,chimney.y,chimney.z);smoke.push({node:p,x:chimney.x,y0:chimney.y,z:chimney.z,phase:k/4+i*.1});}
   }
   ROLES.forEach((_,i)=>building(i));
   function tree(x,z,scale=1){const g=new THREE.Group();g.position.set(x,0,z);g.scale.setScalar(scale);scene.add(g);mesh(new THREE.CylinderGeometry(.09,.14,.8,5),shared.wood,g,0,.4,0);const crown=mesh(new THREE.IcosahedronGeometry(.67,0),mat('#6d8e60'),g,0,1.12,0);crown.scale.y=1.2;wind.push({node:crown,phase:x+z});}
@@ -154,7 +202,7 @@ export function createWorld(onSelect) {
     const house=houses.find(h=>h.group===hovered);
     // Precise vertices avoid the oversized AABB produced by a rotated cone's local box.
     hoverBounds.setFromObject(house?house.structure:hovered,true).expandByScalar(.045);
-    frame.update(hoverBounds,time,!paused&&!media.matches);
+    frame.update(hoverBounds,time,!paused&&!media.matches,camera);
     const anchor=new THREE.Vector3((hoverBounds.min.x+hoverBounds.max.x)/2,hoverBounds.max.y+.25,(hoverBounds.min.z+hoverBounds.max.z)/2).project(camera);
     const x=Math.max(8,Math.min(stage.clientWidth-tooltip.offsetWidth-8,(anchor.x+1)*stage.clientWidth/2-tooltip.offsetWidth/2));
     const y=Math.max(8,Math.min(stage.clientHeight-tooltip.offsetHeight-8,(1-anchor.y)*stage.clientHeight/2-tooltip.offsetHeight));
@@ -212,7 +260,8 @@ export function createWorld(onSelect) {
       if(offices.has(v.role))offices.get(v.role).update(time,v.phase==='inside',paused||media.matches);
     });
     wind.forEach(w=>{w.node.rotation.z=Math.sin(time*1.2+w.phase)*(w.flag?.09:.025);});
-    smoke.forEach(s=>{const f=(time*.14+s.phase)%1;s.node.position.set(s.x+Math.sin(f*4)*.18,2.65+f*1.3,s.z);s.node.scale.setScalar(.7+f*1.6);s.node.material.opacity=(1-f)*.35;});
+    smoke.forEach(s=>{const f=(time*.14+s.phase)%1;s.node.position.set(s.x+Math.sin(f*4)*.18,(s.y0||2.65)+f*1.3,s.z);s.node.scale.setScalar(.7+f*1.6);s.node.material.opacity=(1-f)*.35;});
+    beacons.forEach(b=>{b.material.emissiveIntensity=(current==='TESTER'?1.2+Math.sin(time*5)*.8:.25);});
     ripples.forEach((r,i)=>{r.scale.setScalar(1+Math.sin(time*1.7+i)*.08);});mill.rotation.z=time*.35;
     const activeScene=updateView(dt);if(!view.direction)controls.update();scene.updateMatrixWorld(true);updateHover();renderer.render(activeScene,camera);window.dispatchEvent(new CustomEvent('village-frame'));
   }requestAnimationFrame(animate);
@@ -223,7 +272,7 @@ export function createWorld(onSelect) {
       if(view.role){if(view.direction||view.role!==role||v.phase!=='inside')return null;anchor=officeFor(role).anchor();}
       else anchor=v.phase==='inside'?new THREE.Vector3(v.home[0],2.8,v.home[1]):v.group.position.clone().add(new THREE.Vector3(0,1.35,0));
       const p=anchor.project(camera);return {x:(p.x+1)/2*stage.clientWidth,y:(1-p.y)/2*stage.clientHeight,visible:Math.abs(p.x)<1&&Math.abs(p.y)<1};},
-    diagnostics(){return {renderer:'WebGL',characters:villagers.length,buildings:HOMES.length,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,hovered:hovered?.userData||null,outlineVisible:outline.visible,
+    diagnostics(){return {renderer:'WebGL',characters:villagers.length,buildings:HOMES.length,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,hovered:hovered?.userData||null,outlineVisible:outline.visible,hoverFrame:frame.counts(),
       view:{role:view.role,progress:view.progress,direction:view.direction,camera:camera.position.toArray(),zoom:camera.zoom},
       office:view.role?{name:officeFor(view.role).palette.name,walls:officeFor(view.role).wallCount,furniture:Object.keys(officeFor(view.role).assets),occupant:officeFor(view.role).occupant.visible}:null,
       houses:houses.map((h,i)=>({role:ROLES[i],door:h.door,structureSize:new THREE.Box3().setFromObject(h.structure,true).getSize(new THREE.Vector3()).toArray()})),

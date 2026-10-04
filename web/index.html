@@ -2,28 +2,30 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#f4f1e9">
-<title>Little Works · Agent Village</title>
+<title>Little World · Agent Village</title>
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="layout.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='10' fill='%23315e48'/%3E%3Cpath d='M7 20L20 9l13 11v13H7z' fill='%23e1e8d8'/%3E%3C/svg%3E">
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"}}</script>
 </head><body>
-<header><div class="brand"><span class="logo">⌂</span><div>little works</div></div>
+<header><div class="brand"><span class="logo">⌂</span><div>little world</div></div>
 <div class="project-control"><label for="repo">PROJECT</label><select id="repo" aria-label="Project folder"></select><button id="browse">Choose folder ↗</button></div>
 <span id="connection" class="badge">Connecting</span></header>
-<main><div class="world-panel"><section id="stage" aria-label="Interactive 3D agent village">
+<main><div class="main-view">
+<div class="view-switch" role="tablist" aria-label="Main view"><button id="view-world" class="active" role="tab" aria-selected="true">● Live world</button><button id="view-chat" role="tab" aria-selected="false">✎ Conversation</button></div>
+<div class="view-stack"><section id="stage" aria-label="Interactive 3D agent village">
 <canvas id="cv" aria-label="Drag to orbit, scroll to zoom, click a character to inspect"></canvas>
 <div id="scene-error" role="alert" hidden></div>
 <svg id="leaders" aria-hidden="true"></svg><div id="bubbles"></div>
 <div id="agent-bar" aria-label="Select an agent"></div>
 <div class="world-tools"><button id="reset-camera" title="Reset camera">⌖ Reset view</button><button id="motion" aria-pressed="true">Ⅱ Pause world</button><button id="night" aria-pressed="false">☾ Evening</button><details class="world-help"><summary aria-label="World controls help">?</summary><p>Drag to orbit · scroll to zoom.<br>Click a house to enter. Escape to exit.</p></details></div>
-</section></div>
+</section><section id="sheet" hidden aria-label="Conversation sheet"><div class="sheet-head"><span id="sheet-status">Conversation</span><button id="sheet-back">← Back to live world</button></div><div id="sheet-slot"></div></section></div></div>
 <aside aria-label="Mission Control"><div class="mission-head"><div><span class="eyebrow">MISSION CONTROL</span><h2 id="pTitle">Coder’s workspace</h2></div><span id="run-status" class="badge" role="status">No active run</span></div>
 <div class="session-meta"><span id="active-role">Ready · Coder</span><details class="context-menu"><summary>Context &amp; files</summary><div class="context-content"><p id="pBody">Implementation and verification.</p><p id="world-state"></p>
 <details><summary>Project artifacts</summary><select id="artifact"><option value="plan">Architecture plan</option><option value="report">Implementation report</option><option value="test_report">Test report</option><option value="review">Management review</option><option value="history">Team history</option><option value="brief">Project brief</option></select><pre id="artifact-text">Select an artifact to read.</pre><button id="read-artifact">Read artifact</button></details>
 <details><summary>History &amp; memories</summary><p class="muted">Historical records</p><div id="history"></div><div id="memories"></div></details></div></details></div>
 <div id="notice" role="status"></div>
-<div class="conversation-wrap"><div id="conversation" role="log" aria-label="Agent conversation" aria-live="off"><div class="empty-state"><span class="empty-icon">›_</span><h3>Your next task starts here.</h3><p>Choose an agent and send a task below.<br>Responses, tool activity and reviews appear here.</p><div class="empty-flow">Architect <span>→</span> Coder <span>→</span> Tester <span>→</span> Manager</div></div></div><button id="jump-latest" hidden>↓ Latest output</button></div>
+<div id="side-slot"><div class="conversation-wrap"><div id="conversation" role="log" aria-label="Agent conversation" aria-live="off"><div class="empty-state"><span class="empty-icon">›_</span><h3>Your next task starts here.</h3><p>Choose an agent and send a task below.<br>Responses, tool activity and reviews appear here.</p><div class="empty-flow">Architect <span>→</span> Coder <span>→</span> Tester <span>→</span> Manager</div></div></div><button id="jump-latest" hidden>↓ Latest output</button></div></div><div id="side-note" hidden>Conversation is open in the main panel.</div>
 <form id="task-form"><div class="config-row"><div><label for="role">Agent</label><select id="role"><option value="CODER">Coder</option><option value="TEAM">Full team</option><option value="ARCHITECT">Architect</option><option value="TESTER">Tester</option><option value="MANAGER">Manager</option></select></div>
 <div><label for="engine">Engine</label><select id="engine"><option value="opencode">OpenCode</option><option value="hermes">Hermes</option><option value="llm">Other LLM</option></select></div>
 <div id="catalog-controls"><label for="model-picker">Model</label><select id="model-picker"><option value="">Default engine model</option></select></div></div>

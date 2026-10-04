@@ -4,6 +4,7 @@ async page => {
   await page.route('**/api/village/state?*',route=>route.fulfill({json:{repo:'/Users/azfardanish/.hermes/village',project:'Office check',engine:'opencode',current_agent:active,meeting:false,jobs:[],talks:[],memories:[],warning:''}}));
   try {
     await page.reload();await page.waitForFunction(()=>window.villageWorld);
+    await page.locator('#view-world').click();
     if(!await page.evaluate(()=>window.villageWorld.paused))await page.locator('#motion').click();
     const base=await page.evaluate(()=>window.villageWorld.diagnostics().view.camera);
     const canvas=await page.locator('#cv').boundingBox();

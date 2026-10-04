@@ -11,6 +11,20 @@ function resetConversation(){renderedMessages.clear();$('conversation').replaceC
 function jumpLatest(){const el=$('conversation');el.scrollTop=el.scrollHeight;followingOutput=true;$('jump-latest').hidden=true;}
 $('jump-latest').onclick=jumpLatest;
 $('conversation').addEventListener('scroll',()=>{const el=$('conversation');followingOutput=el.scrollHeight-el.scrollTop-el.clientHeight<65;$('jump-latest').hidden=followingOutput||!renderedMessages.size;},{passive:true});
+let mainView='world';
+try{if(localStorage.getItem('village-view')==='chat')mainView='chat';}catch{/* private browser */}
+function setView(view){
+  mainView=view;save('view',view);
+  const chat=view==='chat';
+  $('view-world').classList.toggle('active',!chat);$('view-chat').classList.toggle('active',chat);
+  $('view-world').setAttribute('aria-selected',String(!chat));$('view-chat').setAttribute('aria-selected',String(chat));
+  $('stage').hidden=chat;$('sheet').hidden=!chat;
+  $(chat?'sheet-slot':'side-slot').append(document.querySelector('.conversation-wrap'));
+  $('side-note').hidden=!chat;
+  if(chat&&world&&typeof world.exitOffice==='function')world.exitOffice();
+  requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
+}
+$('view-world').onclick=()=>setView('world');$('view-chat').onclick=()=>setView('chat');$('sheet-back').onclick=()=>setView('world');
 $('engine').value=['opencode','hermes','llm'].includes(saved('engine'))?saved('engine'):'opencode';
 async function api(path, body){
   const response=await fetch('/api/village/'+path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});
@@ -126,6 +140,7 @@ async function refresh(){
     $('stop').hidden=!activeJob;$('send').disabled=!!activeJob;$('send').textContent=activeJob?'Working…':'Send task ↗';
     $('run-status').textContent=lastJob?.status||'No active run';
     $('run-status').dataset.status=lastJob?.status||'idle';
+    $('sheet-status').textContent=activeJob?`${activeJob.current_agent} · working`:(lastJob?`Last run · ${lastJob.status}`:'Conversation · no active run');
     $('active-role').textContent=activeJob?`${activeJob.current_agent} · ${s.engine} · ${activeJob.model||'default model'}`:`Ready · ${$('role').value} · ${s.engine}`;
     $('world-state').textContent=activeJob?`${s.project} · ${activeJob.current_agent.toLowerCase()} is working`:`${s.project} · ${lastJob?'last run '+lastJob.status:'ready for a new task'} · ambient village`;
     world?.setState(s);
@@ -169,6 +184,7 @@ $('folder-up').onclick=()=>browse(folderParent);
 $('folder-select').onclick=()=>{if(!folderPath)return;addRepo(folderPath);$('repo').value=folderPath;$('folder-dialog').close();scopeChange();};
 function addRepo(path){if(![...$('repo').options].some(o=>o.value===path)){const opt=node('option',path.split('/').pop()||path);opt.value=path;opt.title=path;$('repo').append(opt);}}
 async function init(){
+  setView(mainView);
   try{const data=await api('repos');data.repos.forEach(addRepo);const previous=saved('repo');if(previous)addRepo(previous);if(!$('repo').options.length)addRepo(data.home);$('repo').value=previous||data.repos[0]||data.home;await refresh();}
   catch(error){notice(error.message);}
   try{const data=await api('models');catalog=data.models;modelOptions();if(data.warnings.length)notice(data.warnings.join(' · '));}catch(error){notice(error.message);modelOptions();}
