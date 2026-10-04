@@ -89,12 +89,12 @@ export function createWorld(onSelect) {
       // Tester: round observation tower with a conical cap and beacon.
       mesh(new THREE.CylinderGeometry(1.12,1.12,.14,10),shared.wood,structure,0,.2,0);
       mesh(new THREE.CylinderGeometry(1.02,1.08,1.7,10),shared.cream,structure,0,.95,0);
-      doorway(.5,1.0,1.0);doorLeaf(.48,.96,-.24,1.04);
+      doorway(.5,1.0,1.06);doorLeaf(.48,.96,-.24,1.10);
       mesh(new THREE.ConeGeometry(1.2,1.0,6),roofMaterial,structure,0,2.3,0);
       const beacon=mesh(new THREE.SphereGeometry(.09,6,5),mat('#ffd166',{emissive:'#ffb347',emissiveIntensity:.3}),structure,0,2.86,0);beacons.push(beacon);
-      for(const sx of [-.55,.55]){const ring=mesh(new THREE.TorusGeometry(.17,.035,5,10),shared.cream,g,sx,1.3,.86);mesh(new THREE.CylinderGeometry(.15,.15,.06,8),glassMat,g,sx,1.3,.86).rotation.x=Math.PI/2;ring.position.z=.87;}
+      for(const sx of [-.55,.55]){mesh(new THREE.TorusGeometry(.17,.035,5,10),shared.cream,g,sx,1.3,.90);mesh(new THREE.CylinderGeometry(.15,.15,.06,8),glassMat,g,sx,1.3,.875).rotation.x=Math.PI/2;}
       mesh(new THREE.CylinderGeometry(.27,.35,.55,6),mat('#b49abe'),g,-1.5,.4,.3);mesh(new THREE.ConeGeometry(.4,.7,6),roofMaterial,g,-1.5,1.02,.3);
-      lampPos=[.45,1.05,1.0];pole(1.25,1.0,-.5,1.4);
+      lampPos=[.45,1.05,1.02];pole(1.25,1.0,-.5,1.4);
       const flag=mesh(box(.44,.25,.025),roofMaterial,g,1.5,1.55,-.5);wind.push({node:flag,phase:i,flag:true});
     }else{
       // Manager: grand double-height hall, two-tier roof, columned porch.
@@ -125,8 +125,8 @@ export function createWorld(onSelect) {
   const ripples=[];for(let i=0;i<3;i++){const ring=mesh(new THREE.TorusGeometry(.28+i*.2,.012,3,18),mat('#d4e4d4'),scene,5.7,.1,1.7);ring.rotation.x=Math.PI/2;ripples.push(ring);}
   for(let i=0;i<5;i++)mesh(box(.25,.1,1.6),shared.wood,scene,5.2+i*.25,.19,1.7);
   for(let i=0;i<28;i++){const x=Math.sin(i*7.7)*6.4,z=Math.cos(i*4.1)*5.6;if(Math.abs(x)<1.7||HOMES.some(([a,b])=>Math.hypot(x-a,z-b)<1.7))continue;mesh(new THREE.IcosahedronGeometry(.1,0),mat(i%2?'#e6c36c':'#e9dcc0'),scene,x,.18,z);}
-  mesh(new THREE.CylinderGeometry(.35,.6,1.5,7),shared.cream,scene,-1.9,.77,-5);
-  const mill=new THREE.Group();mill.position.set(-1.9,1.9,-4.62);scene.add(mill);for(let i=0;i<4;i++){let blade=mesh(box(.14,.94,.07),shared.wood,mill,0,0,0);blade.rotation.z=i*Math.PI/2;blade.position.set(Math.sin(-i*Math.PI/2)*.47,Math.cos(i*Math.PI/2)*.47,0);}
+  mesh(new THREE.CylinderGeometry(.35,.6,1.5,7),shared.cream,scene,-1.9,.74,-5);
+  const mill=new THREE.Group();mill.position.set(-1.9,2.6,-4.62);scene.add(mill);for(let i=0;i<4;i++){let blade=mesh(box(.14,.94,.07),shared.wood,mill,0,0,0);blade.rotation.z=i*Math.PI/2;blade.position.set(Math.sin(-i*Math.PI/2)*.47,Math.cos(i*Math.PI/2)*.47,0);}
   // Role characters have feet, arms, faces, hair and a distinctive hat.
   for(let i=0;i<4;i++){
     const g=new THREE.Group();g.position.set((i-1.5)*1.15,0,1.8);g.userData={role:ROLES[i],kind:'character',name:ROLES[i][0]+ROLES[i].slice(1).toLowerCase()};scene.add(g);pickables.push(g);
@@ -265,7 +265,8 @@ export function createWorld(onSelect) {
     ripples.forEach((r,i)=>{r.scale.setScalar(1+Math.sin(time*1.7+i)*.08);});mill.rotation.z=time*.35;
     const activeScene=updateView(dt);if(!view.direction)controls.update();scene.updateMatrixWorld(true);updateHover();renderer.render(activeScene,camera);window.dispatchEvent(new CustomEvent('village-frame'));
   }requestAnimationFrame(animate);
-  return {setState(s){current=s.current_agent;meeting=s.meeting;},reset,exitOffice,
+  function orbitTo(azDeg,polarDeg=1.05){const r=camera.position.distanceTo(controls.target);const az=azDeg*Math.PI/180;camera.position.set(controls.target.x+r*Math.sin(polarDeg)*Math.sin(az),controls.target.y+r*Math.cos(polarDeg),controls.target.z+r*Math.sin(polarDeg)*Math.cos(az));controls.update();}
+  return {setState(s){current=s.current_agent;meeting=s.meeting;},reset,exitOffice,orbitTo,
     pause(){paused=!paused;return paused;},get paused(){return paused;},
     night(){evening=!evening;hemi.intensity=evening?1:2.7;sun.intensity=evening?.65:3.3;renderer.setClearColor(evening?'#71818b':'#e5eadb');ground.material.color.set(evening?'#71818b':'#e5eadb');return evening;},
     project(role){const v=villagers.find(v=>v.role===role);if(!v)return null;let anchor;

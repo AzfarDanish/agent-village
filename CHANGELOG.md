@@ -6,6 +6,16 @@ changes always note the `config.py:CONFIG_VERSION` implication.
 
 ## Unreleased
 
+### Fixed
+- Systematic geometry pass: tester's door/portholes moved proud of the
+  tower wall (were buried), bookshelf rebuilt as an open frame with books on
+  boards (were hidden in solid wood), printer tray/slot moved out of the
+  cabinet, desk/chair/lamp/pencil/books seated on surfaces, windmill hub
+  raised clear of the tower. Verified from four orbit angles + all offices.
+- Agent exit now mirrors entry on every completion path (done, failed,
+  cancelled, mid-approach cancel, TEAM handoff): door opens from inside,
+  character steps out and wanders, door closes. Covered by `doorway-check.js`.
+
 ### Added
 - Engine-backed session management (`sessions.py` + sidebar controls):
   per-engine browsable session lists scoped to the project folder, explicit
