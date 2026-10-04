@@ -107,17 +107,39 @@ def engine_command(name):
     return [resolved['command']] + extra
 
 
+SESSION_ID_RE = re.compile(r'^[A-Za-z0-9_.-]{3,120}$')
+
+
+def check_session_id(engine, session_id):
+    """Format-validate only; existence is checked against the engine store."""
+    if not session_id:
+        return ''
+    sid = session_id.strip()
+    if engine == 'opencode' and not re.fullmatch(r'ses_[A-Za-z0-9]+', sid):
+        raise ValueError('That OpenCode session id looks invalid (expected ses_…). Reselect it from the list.')
+    if engine == 'hermes' and not SESSION_ID_RE.fullmatch(sid):
+        raise ValueError('That Hermes session id looks invalid. Reselect it from the list.')
+    return sid
+
+
 def command(job, prompt):
     model = job['model']
+    sid = job.get('session_id', '')
     if job['engine'] == 'opencode':
         args = engine_command('opencode') + ['run', '--pure', '--format', 'json', '--dir', job['repo']]
         if model:
             args += ['--model', model]
+        if sid:
+            args += ['--session', sid]
+        elif job.get('new_title'):
+            args += ['--title', job['new_title']]
         return args + ['--', prompt]
     args = engine_command('hermes') + ['chat', '--format', 'stream-json', '--in', job['repo'], '--max-turns', '60']
     if model:
         provider, name = model.split('/', 1)
         args += ['--provider', provider, '--model', name]
+    if sid:
+        args += ['--resume', sid]
     return args + ['-q', prompt]
 
 
@@ -156,6 +178,9 @@ def stream_event(job, line):
     except ValueError:
         return ''
     kind = item.get('type', '')
+    sid = item.get('session_id') or item.get('sessionID') or item.get('sessionId')
+    if isinstance(sid, str) and sid.strip() and not job.get('engine_session'):
+        job['engine_session'] = sid.strip()[:120]
     part = item.get('part') or {}
     if not isinstance(part, dict):
         part = {}
@@ -272,6 +297,9 @@ def run(job):
                         'Do not commit or push unless the user requested it. Clearly report anything not verified.')
             result = direct_llm(job, prompt) if job['engine'] == 'llm' else run_cli(job, prompt)
             context += '\n' + role + ':\n' + result
+        if (job.get('new_title') and job['engine'] == 'hermes'
+                and job.get('engine_session') and job['status'] != 'cancelled'):
+            apply_new_title(job)
         with LOCK:
             if job['status'] != 'cancelled':
                 job['status'] = 'completed'
@@ -305,6 +333,13 @@ def submit(body):
         raise ValueError(f'Enter a task of 1–{limit:,} characters')
     if engine != 'llm':
         engine_command(engine)  # fail fast with an install hint, before queueing
+    session_id = check_session_id(engine, body.get('session_id', '')) if engine != 'llm' else ''
+    new_title = ''
+    if engine != 'llm' and body.get('new_session'):
+        import sessions  # deferred: sessions.py imports this module
+        new_title = sessions.check_title(body.get('new_title', ''))
+        if session_id:
+            raise ValueError('Pick either an existing session or a new one, not both.')
     if engine != 'llm' and model and '/' not in model:
         raise ValueError('Use a provider/model identifier')
     if engine == 'llm':
@@ -321,6 +356,7 @@ def submit(body):
             context = previous['message'] + '\n' + '\n'.join(e['text'] for e in previous['events'] if e['kind'] == 'message')
         job = {'id': uuid.uuid4().hex, 'repo': str(repo), 'engine': engine, 'model': model,
                'role': role, 'current_agent': roles_first(role), 'message': message,
+               'session_id': session_id, 'new_title': new_title, 'engine_session': '',
                'status': 'queued', 'created_at': time.time(), 'events': [], 'context': context,
                'base_url': body.get('base_url', ''), 'key_env': body.get('key_env', '')}
         JOBS[job['id']] = job
@@ -331,6 +367,15 @@ def submit(body):
 
 def roles_first(role):
     return ROLES[0] if role == 'TEAM' else role
+
+
+def apply_new_title(job):
+    """Best-effort: give the engine-created Hermes session the requested title."""
+    try:
+        import sessions  # deferred: sessions.py imports this module
+        sessions.rename_session('hermes', job['engine_session'], job['new_title'])
+    except Exception as exc:
+        event(job, f'Engine session kept its automatic title ({exc})', 'status')
 
 
 def terminate(job_id):

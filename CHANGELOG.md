@@ -7,6 +7,12 @@ changes always note the `config.py:CONFIG_VERSION` implication.
 ## Unreleased
 
 ### Added
+- Engine-backed session management (`sessions.py` + sidebar controls):
+  per-engine browsable session lists scoped to the project folder, explicit
+  new-session arming with optional title, Hermes rename, two-click engine-side
+  delete with fork/cascade guards, attach on dispatch (`--session` /
+  `--resume`), captured `engine_session` on run records. `runs/*.json`
+  documented as run receipts, not sessions (see `docs/sessions.md`).
 - Versioned local config (`village.json`, schema v1) with `village.example.json`
   mirror: host/port, default engine/model/role/repo, project roots, run
   timeout, message limit, per-engine binary paths + extra args, path overrides.

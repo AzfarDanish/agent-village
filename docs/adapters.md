@@ -61,10 +61,16 @@ produces no report and the chain stops.
 
 - **OpenCode** (`command` → `opencode run --pure --format json`): JSON
   event stream; `text`/`result` kinds carry output. `--pure` avoids loading
-  the user's global village plugin from the earlier experiment.
+  the user's global village plugin from the earlier experiment. Session
+  attach: `--session <id>`; creation title: `--title`. Browse/delete via
+  `session list|delete`; the session id is captured from result lines into
+  `job.engine_session`.
 - **Hermes** (`command` → `hermes chat --format stream-json`): `text`,
   `tool_use`/`tool_result`, and terminal `result` records
-  (`hermes_cli/stream_json.py` shapes these).
+  (`hermes_cli/stream_json.py` shapes these). Session attach: `--resume
+  <id>` (with `--in <repo>` so cwd stays put). Creation titles are applied
+  post-run via `sessions rename` (best-effort). Browse/rename/delete via
+  `sessions list|rename|delete`; `--resume` output carries `session_id`.
 - **OpenAI-compatible** (`direct_llm`): single non-streaming
   `/chat/completions` POST. Chat-only by construction — no tools to parse,
   no filesystem to touch.

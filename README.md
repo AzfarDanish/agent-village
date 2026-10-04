@@ -33,6 +33,7 @@ village drives your CLIs, it doesn't replace them.
 ## Docs
 
 - [Architecture](docs/architecture.md) — server, runtime, frontend, run records
+- [Sessions](docs/sessions.md) — engine-owned sessions: browse, attach, create, rename, delete
 - [Configuration](docs/configuration.md) — `village.json`, defaults, discovery
 - [Engine adapters](docs/adapters.md) — the plugin contract + reference behavior
 - [runs/*.json format](docs/runs-format.md)

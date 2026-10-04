@@ -60,6 +60,62 @@ class VillageTests(unittest.TestCase):
         finally:
             village_config.load()
 
+    def test_session_attach_flags_and_validation(self):
+        base = {'engine': 'opencode', 'model': '', 'repo': str(self.root),
+                'session_id': '', 'new_title': ''}
+        args = runtime.command({**base}, 'do it')
+        self.assertNotIn('--session', args)
+        self.assertNotIn('--title', args)
+        args = runtime.command({**base, 'session_id': 'ses_abc123'}, 'do it')
+        self.assertEqual(args[args.index('--session') + 1], 'ses_abc123')
+        args = runtime.command({**base, 'new_title': 'Big refactor'}, 'do it')
+        self.assertEqual(args[args.index('--title') + 1], 'Big refactor')
+        with self.assertRaises(ValueError):
+            runtime.check_session_id('opencode', 'not a session!!')
+        hermes = {**base, 'engine': 'hermes', 'session_id': '20240101_120000_ab12cd'}
+        args = runtime.command(hermes, 'do it')
+        self.assertEqual(args[args.index('--resume') + 1], '20240101_120000_ab12cd')
+        llm = {**base, 'engine': 'llm', 'session_id': 'ses_abc123'}
+        self.assertNotIn('--session', runtime.command(llm, 'do it'))
+
+    def test_submit_session_rules(self):
+        good = {'repo': str(self.root), 'engine': 'opencode', 'message': 'hi'}
+        with patch.object(runtime, 'command', lambda *_: [sys.executable, '-c', 'print("{}")']):
+            receipt = runtime.submit({**good, 'session_id': 'ses_abc123'})
+            job = runtime.JOBS[receipt['id']]
+            self.wait(job)
+            self.assertEqual(job['session_id'], 'ses_abc123')
+            receipt = runtime.submit({**good, 'new_session': True, 'new_title': 'Fresh'})
+            job = runtime.JOBS[receipt['id']]
+            self.wait(job)
+            self.assertEqual((job['new_title'], job['session_id'], job['status']), ('Fresh', '', 'completed'))
+        with self.assertRaises(ValueError):
+            runtime.submit({**good, 'session_id': 'ses_x', 'new_session': True})
+        with self.assertRaises(ValueError):
+            runtime.submit({**good, 'session_id': 'bogus id!!'})
+
+    def test_stream_captures_engine_session(self):
+        job = {'id': 'stream-test', 'current_agent': 'CODER', 'engine_session': '', 'events': []}
+        runtime.stream_event(job, json.dumps({'type': 'result', 'session_id': 'abc123', 'text': 'hi'}))
+        self.assertEqual(job['engine_session'], 'abc123')
+        job = {'id': 'stream-test', 'current_agent': 'CODER', 'engine_session': '', 'events': []}
+        runtime.stream_event(job, json.dumps({'type': 'text', 'sessionID': 'ses_9', 'text': 'hi'}))
+        self.assertEqual(job['engine_session'], 'ses_9')
+
+    def test_session_store_helpers(self):
+        import sessions
+        with self.assertRaises(ValueError):
+            sessions.check_title('has\nnewline')
+        with self.assertRaises(ValueError):
+            sessions.rename_session('opencode', 'ses_x', 'whatever')
+        with self.assertRaises(ValueError):
+            sessions.delete_session('opencode', 'ses_definitely_missing_123')
+        result = sessions.describe_sessions('opencode', self.root)
+        self.assertIn('sessions', result)
+        self.assertIsInstance(result['warning'], str)
+        for item in result['sessions']:
+            self.assertTrue(item['id'] and item['title'])
+
     def test_tool_results_are_separate_from_messages(self):
         job = {'id': 'tool-test', 'current_agent': 'TESTER', 'events': []}
         runtime.stream_event(job, json.dumps({'type': 'tool_result', 'name': 'bash', 'output': '3 checks passed'}))

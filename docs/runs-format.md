@@ -13,6 +13,9 @@ Every run persists as one JSON file in `runs/` (git-ignored), named
   "role": "TEAM",                        // ARCHITECT|CODER|TESTER|MANAGER|TEAM
   "current_agent": "CODER",              // role currently executing
   "message": "…user task…",
+  "session_id": "ses_…",                 // selected engine session, "" = engine default
+  "new_title": "",                       // requested title for an engine-created session
+  "engine_session": "ses_…",             // engine session id captured from engine output
   "status": "completed",                 // queued|running|completed|failed|cancelled|interrupted
   "error": null,                         // redacted failure text, if any
   "created_at": 1791085821.9,
@@ -35,3 +38,6 @@ All `text` is redacted (ANSI + key patterns) and capped (24k per event,
 `queued`/`running` — the process is gone, only the record remains.
 `context` (prior-run text for follow-ups) is consumed at dispatch and never
 persisted.
+
+These records describe runs, not engine sessions. The engine session is the
+conversation; the run record is the receipt. See [Sessions](sessions.md).

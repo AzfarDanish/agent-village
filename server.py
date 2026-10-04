@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 import config as village_config
 import runtime
+import sessions
 from legacy import read_artifact, read_memories, read_team_state, parse_talks
 
 HOME = Path.home()
@@ -124,6 +125,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send({'repos': repos[:50], 'home': str(HOME)})
             if url.path == '/api/village/state':
                 return self.send(state(folder(get('repo')), get('engine', 'opencode')))
+            if url.path == '/api/village/sessions':
+                engine = get('engine', 'opencode')
+                if engine not in ('opencode', 'hermes'):
+                    return self.send({'error': 'Sessions are per-engine: opencode or hermes.'}, 400)
+                return self.send(sessions.describe_sessions(engine, folder(get('repo'))))
             if url.path == '/api/village/artifacts':
                 repo = folder(get('repo'))
                 return self.send({'artifacts': {k: read_artifact(repo, k, 80000) for k in
@@ -147,7 +153,30 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise ValueError('Expected an object')
             if self.path == '/api/village/dispatch':
+                engine = body.get('engine')
+                sid = (body.get('session_id') or '').strip()
+                if engine in ('opencode', 'hermes') and sid \
+                        and not sessions.session_exists(engine, sid):
+                    return self.send({'error': 'That session no longer exists on the engine side. '
+                                               'Reselect it from the list.'}, 400)
                 return self.send(runtime.submit(body), 202)
+            if self.path == '/api/village/sessions/delete':
+                engine = body.get('engine')
+                if engine not in ('opencode', 'hermes'):
+                    return self.send({'error': 'Sessions are per-engine: opencode or hermes.'}, 400)
+                try:
+                    sessions.delete_session(engine, (body.get('id') or '').strip())
+                except ValueError as exc:
+                    return self.send({'error': str(exc)}, 400)
+                return self.send({'ok': True})
+            if self.path == '/api/village/sessions/rename':
+                try:
+                    sessions.rename_session(body.get('engine'),
+                                            (body.get('id') or '').strip(),
+                                            body.get('title', ''))
+                except ValueError as exc:
+                    return self.send({'error': str(exc)}, 400)
+                return self.send({'ok': True})
             if self.path == '/api/village/stop':
                 runtime.terminate(body.get('id'))
                 return self.send({'ok': True})
