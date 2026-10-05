@@ -35,6 +35,7 @@ async page=>{
   if(!await page.locator('#session-title-fields').isVisible())throw Error('New-session title fields missing');
   let captured=null;
   await page.route('**/api/village/dispatch',route=>{captured=route.request().postDataJSON();return route.fulfill({status:400,body:'{"error":"intercepted"}'});});
+  await page.locator('#view-chat').click();
   await page.locator('#session-title').fill('Browser check title');
   await page.locator('#message').fill('check payload');
   await page.locator('#send').click();

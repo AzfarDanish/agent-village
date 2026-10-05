@@ -19,8 +19,6 @@ function setView(view){
   $('view-world').classList.toggle('active',!chat);$('view-chat').classList.toggle('active',chat);
   $('view-world').setAttribute('aria-selected',String(!chat));$('view-chat').setAttribute('aria-selected',String(chat));
   $('stage').hidden=chat;$('sheet').hidden=!chat;
-  $(chat?'sheet-slot':'side-slot').append(document.querySelector('.conversation-wrap'));
-  $('side-note').hidden=!chat;
   if(chat&&world&&typeof world.exitOffice==='function')world.exitOffice();
   requestAnimationFrame(()=>window.dispatchEvent(new Event('resize')));
 }
@@ -37,22 +35,41 @@ function displayError(text){
   if(text.includes("free tier can only be used from within OpenCode"))return 'OpenCode’s provider rejected this free-tier request (HTTP 403). Choose a different model provider, such as RapidScreen or OpenRouter, with valid credentials. The village cannot override this provider restriction.';
   return text;
 }
-function card(author,text,kind='message'){
-  const role=roles.indexOf(author),isTool=['tool','tool_result'].includes(kind);
-  const e=node(isTool?'details':'div','', 'message '+kind);
+function card(author,text,kind='message',turnStart=false){
+  const role=roles.indexOf(author);
+  const e=node(kind==='tool_result'?'details':'div','', 'tline '+kind+(turnStart?' turn-start':''));
   if(role>=0)e.style.setProperty('--speaker',colors[role]);
-  if(isTool){e.append(node('summary',`${kind==='tool'?'⚙':'↳'} ${author} · ${text.split('\n')[0].slice(0,120)}`),node('pre',text));}
-  else e.append(node('b',`${kind==='error'?'! ':kind==='status'?'· ':''}${author}`),document.createTextNode(kind==='error'?displayError(text):text));
+  const pfx=node('span','', 'pfx'),body=node('span','', 'tbody');
+  if(kind==='user'){pfx.textContent='you $';body.textContent=text;}
+  else if(kind==='error'){pfx.textContent='!';body.textContent=displayError(text);}
+  else if(kind==='status'){pfx.textContent='·';body.textContent=author+' — '+text;}
+  else if(kind==='tool'){pfx.textContent='[tool]';body.textContent=author+' $ '+text;}
+  else if(kind==='history'){pfx.textContent='#';body.textContent=author+': '+text;}
+  else{pfx.textContent=(role>=0?author.toLowerCase():author.toLowerCase())+' >';body.textContent=text;}
+  if(kind==='tool_result'){
+    const summary=node('summary','');summary.append(pfx,body);
+    body.textContent=text.split('\n')[0].slice(0,140);
+    const pre=node('pre',text);e.append(summary,pre);
+  }else e.append(pfx,body);
   return e;
 }
 function renderConversation(jobs){
   if(!jobs.length){if(renderedMessages.size)resetConversation();return;}
-  $('conversation').querySelector('.empty-state')?.remove();
+  $('conversation').querySelector('.term-empty')?.remove();
   const keep=new Set(),fragment=document.createDocumentFragment();
-  function upsert(id,author,text,kind){keep.add(id);const signature=author+'\0'+kind+'\0'+text,old=renderedMessages.get(id);if(old?.signature===signature)return;const el=card(author,text,kind);if(old){if(old.el.open)el.open=true;old.el.replaceWith(el);}else fragment.append(el);renderedMessages.set(id,{el,signature});}
-  for(const job of jobs){upsert(job.id+'-prompt','YOU · '+job.role,job.message,'user');for(const e of job.events)upsert(e.id,e.author,e.text,e.kind);if(job.error&&!job.events.some(e=>e.kind==='error'))upsert(job.id+'-error','ERROR',job.error,'error');}
+  function upsert(id,author,text,kind,first=false){keep.add(id);const signature=author+'\0'+kind+'\0'+text,old=renderedMessages.get(id);if(old?.signature===signature){if(first)old.el.classList.add('turn-start');return;}const el=card(author,text,kind,first);if(old){if(old.el.open)el.open=true;old.el.replaceWith(el);}else fragment.append(el);renderedMessages.set(id,{el,signature});}
+  for(const job of jobs){upsert(job.id+'-prompt','YOU · '+job.role,job.message,'user',true);for(const e of job.events)upsert(e.id,e.author,e.text,e.kind);if(job.error&&!job.events.some(e=>e.kind==='error'))upsert(job.id+'-error','ERROR',job.error,'error');}
   for(const [id,item] of renderedMessages){if(!keep.has(id)){item.el.remove();renderedMessages.delete(id);}}
   $('conversation').append(fragment);if(followingOutput)jumpLatest();else $('jump-latest').hidden=false;
+  applyFilter();
+}
+function updateCursor(){
+  document.querySelector('.cursor')?.remove();
+  if(!activeJob)return;
+  const lines=$('conversation').querySelectorAll('.tline');
+  const last=lines[lines.length-1];
+  if(!last||!followingOutput)return;
+  const c=node('span','▊','cursor');(last.querySelector('.tbody')||last).append(c);
 }
 function selectRole(role){selectedRole=role;$('role').value=role;$('pTitle').textContent=role[0]+role.slice(1).toLowerCase()+"’s workspace";$('pBody').textContent={ARCHITECT:'Blueprints, requirements and acceptance criteria.',CODER:'Implementation, tools and building things that work.',TESTER:'Independent checks, reproduction steps and test evidence.',MANAGER:'Review, decisions and the next steps for the team.'}[role];document.querySelectorAll('.agent-button').forEach(b=>b.classList.toggle('active',b.dataset.role===role));$('artifact').value={ARCHITECT:'plan',CODER:'report',TESTER:'test_report',MANAGER:'review'}[role];}
 roles.forEach((role,i)=>{const b=node('button','', 'agent-button');b.dataset.role=role;b.style.setProperty('--role',colors[i]);b.append(node('i'),document.createTextNode(role[0]+role.slice(1).toLowerCase()));b.onclick=()=>selectRole(role);$('agent-bar').append(b);});
@@ -74,7 +91,7 @@ function layoutBubbles(){
   const now=performance.now(),stage=$('stage'),w=stage.clientWidth,h=stage.clientHeight,placed=[];
   bubbles=bubbles.filter(b=>{if(now-b.start>10000){b.el.remove();b.line.remove();return false;}return true;});
   for(const b of bubbles){
-    const anchor=world.project(b.role);if(!anchor){b.el.style.opacity='0';b.line.style.opacity='0';continue;}
+    const anchor=world.project(b.role);if(!anchor||!isFinite(anchor.x+anchor.y)){b.el.style.opacity='0';b.line.style.opacity='0';continue;}
     const bw=b.el.offsetWidth,bh=b.el.offsetHeight;
     let x=Math.max(10,Math.min(w-bw-10,anchor.x-bw/2)),y=Math.max(130,Math.min(h-bh-130,anchor.y-bh-35));
     const overlaps=(px,py)=>placed.some(r=>px<r.x+r.w+14&&px+bw+14>r.x&&py<r.y+r.h+14&&py+bh+14>r.y);
@@ -140,7 +157,10 @@ async function refresh(){
     $('stop').hidden=!activeJob;$('send').disabled=!!activeJob;$('send').textContent=activeJob?'Working…':'Send task ↗';
     $('run-status').textContent=lastJob?.status||'No active run';
     $('run-status').dataset.status=lastJob?.status||'idle';
-    $('sheet-status').textContent=activeJob?`${activeJob.current_agent} · working`:(lastJob?`Last run · ${lastJob.status}`:'Conversation · no active run');
+    const sessName=selectedSession()?sessionTitle(selectedSession()):(sessionMode==='new'?'new session':'no session');
+    $('sheet-status').textContent=`${s.engine} — ${sessName} — ${s.project}`;
+    const lastEvent=s.jobs.flatMap(j=>j.events).at(-1);
+    $('digest-text').textContent=activeJob?`${activeJob.current_agent.toLowerCase()} > working…`:(lastEvent?`${lastEvent.author.toLowerCase()} > ${lastEvent.text.split('\n')[0].slice(0,90)}`:'idle — open Conversation to begin');
     const sessLabel=selectedSession()?'⧉ '+sessionTitle(selectedSession()).slice(0,30):(sessionMode==='new'?'⧉ new session':'');
     $('active-role').textContent=(activeJob?`${activeJob.current_agent} · ${s.engine} · ${activeJob.model||'default model'}`:`Ready · ${$('role').value} · ${s.engine}`)+(sessLabel?' · '+sessLabel:'');
     updateSessionButtons();
@@ -151,8 +171,9 @@ async function refresh(){
     if(firstPoll){events.forEach(e=>seen.add(e.id));firstPoll=false;}else events.slice(-10).forEach(addBubble);
     const key=s.jobs.map(j=>`${j.id}:${j.events.length}:${j.status}:${j.events.at(-1)?.id}:${j.events.at(-1)?.text}`).join('|');
     if(key!==conversationKey){
-      conversationKey=key;renderConversation(s.jobs);
+      conversationKey=key;$('conversation').classList.remove('cleared');renderConversation(s.jobs);
     }
+    updateCursor();
     $('history').replaceChildren(...s.talks.slice(-8).map(t=>card(t.author,t.text,'history')));
     $('memories').replaceChildren(...s.memories.map(m=>card(m.source,m.text,'history')));
     if(s.warning)notice(s.warning);
@@ -169,7 +190,19 @@ $('model-provider').onchange=()=>{save('provider-'+$('engine').value,$('model-pr
 $('model-picker').onchange=()=>{$('model').value=$('model-picker').value;save('model-'+$('engine').value,$('model').value);modelWarning();};
 $('model').onchange=()=>{save('model-'+$('engine').value,$('model').value);filterModels();};
 $('model').oninput=modelWarning;
-$('task-form').onsubmit=async e=>{
+function applyFilter(){
+  const q=$('term-filter').value.trim().toLowerCase();
+  for(const [,item] of renderedMessages)item.el.style.display=!q||item.el.textContent.toLowerCase().includes(q)?'':'none';
+}
+$('term-filter').oninput=applyFilter;
+$('term-copy').onclick=async()=>{
+  const text=$('conversation').innerText;
+  try{await navigator.clipboard.writeText(text);}
+  catch(error){const ta=node('textarea',text);document.body.append(ta);ta.select();document.execCommand('copy');ta.remove();}
+  $('term-copy').textContent='copied';setTimeout(()=>$('term-copy').textContent='copy',1200);
+};
+$('term-clear').onclick=()=>{$('conversation').classList.add('cleared');};
+$('prompt-form').onsubmit=async e=>{
   e.preventDefault();notice('');$('send').disabled=true;
   const requestScope=scope;
   try{

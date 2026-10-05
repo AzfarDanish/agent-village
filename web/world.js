@@ -209,7 +209,7 @@ export function createWorld(onSelect) {
     tooltip.style.transform=`translate3d(${Math.round(x)}px,${Math.round(y)}px,0)`;
   }
   const turn=(from,to,t)=>from+Math.atan2(Math.sin(to-from),Math.cos(to-from))*t;
-  function resize(){const w=stage.clientWidth,h=stage.clientHeight,aspect=w/h;camera.left=-10.6*aspect;camera.right=10.6*aspect;camera.top=10.6;camera.bottom=-10.6;if(view.role&&!view.direction)camera.zoom=officeZoom();camera.updateProjectionMatrix();renderer.setSize(w,h,false);}
+  function resize(){const w=stage.clientWidth,h=stage.clientHeight;if(w<2||h<2)return;const aspect=w/h;camera.left=-10.6*aspect;camera.right=10.6*aspect;camera.top=10.6;camera.bottom=-10.6;if(view.role&&!view.direction)camera.zoom=officeZoom();camera.updateProjectionMatrix();renderer.setSize(w,h,false);}
   new ResizeObserver(resize).observe(stage);resize();
   function advanceRoute(v,dt){const target=v.route[0];if(!target)return false;const delta=target.clone().sub(v.group.position),dist=delta.length();if(dist<.055){v.group.position.copy(target);v.route.shift();return false;}v.group.position.addScaledVector(delta,Math.min(dist,dt*1.65)/dist);v.facing=Math.atan2(delta.x,delta.z);return true;}
   function workerStep(v,i,working,dt){

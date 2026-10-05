@@ -78,7 +78,8 @@ by the `web/*.js` modules, kept for reference).
 
 | File | Owns |
 |------|------|
-| `ui.js` | Controls, polling (1.8s), conversation rendering by event id, speech-bubble layout, folder browser, config defaults |
+| `ui.js` | Controls, polling (1.8s), shell-transcript rendering by event id, streaming cursor, filter/copy/clear toolbar, speech-bubble layout, folder browser, config defaults |
+| `terminal.css` | Terminal-sheet presentation only (palette, prefixes, hanging indent, titlebar, prompt row). No behavior lives here. |
 | `world.js` | Village scene graph, villagers, work/meeting movement, door entry/exit, office transitions, picking, hover |
 | `offices.js` | Four two-wall office interiors + furnishings + palettes |
 | `hover-frame.js` | Chunky geometry edge frames, camera-facing side only |

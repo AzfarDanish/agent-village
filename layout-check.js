@@ -12,19 +12,22 @@ async page=>{
     const aside=await page.locator('aside').boundingBox();
     if(aside.width<280||aside.width>360)throw Error('Sidebar not narrow/fixed: '+aside.width);
     if(!await page.locator('#stage').isVisible()||await page.locator('#sheet').isVisible())throw Error('World not default view');
+    await page.locator('#view-chat').click();
     if(!await page.locator('.empty-state').isVisible())throw Error('Missing empty state');
+    await page.locator('#view-world').click();
     // Switch to conversation: single instance moves to the sheet, sidebar keeps controls only.
     await page.locator('#view-chat').click();
     await page.waitForFunction(()=>!document.querySelector('#stage').offsetParent&&!document.querySelector('#sheet').hidden);
-    const locations=await page.evaluate(()=>({inSheet:!!document.querySelector('#sheet-slot .conversation-wrap'),inSide:!!document.querySelector('#side-slot .conversation-wrap'),count:document.querySelectorAll('#conversation').length,note:!document.querySelector('#side-note').hidden}));
-    if(!locations.inSheet||locations.inSide||locations.count!==1||!locations.note)throw Error('Conversation duplicated or misplaced: '+JSON.stringify(locations));
+    const locations=await page.evaluate(()=>({inSheet:!!document.querySelector('#sheet-slot #conversation'),count:document.querySelectorAll('#conversation').length,digest:!!document.querySelector('#side-digest')}));
+    if(!locations.inSheet||locations.count!==1||!locations.digest)throw Error('Conversation misplaced or digest missing: '+JSON.stringify(locations));
     if(await page.locator('#task-form').isVisible()===false)throw Error('Sidebar controls missing in chat mode');
     await page.locator('#view-world').click();
-    await page.waitForFunction(()=>!document.querySelector('#stage').hidden===false||document.querySelector('#stage').offsetParent);
-    const back=await page.evaluate(()=>({inSide:!!document.querySelector('#side-slot .conversation-wrap'),stage:!!document.querySelector('#stage').offsetParent}));
-    if(!back.inSide||!back.stage)throw Error('Return to world failed');
+    await page.waitForFunction(()=>!!document.querySelector('#stage').offsetParent);
+    const back=await page.evaluate(()=>({single:document.querySelectorAll('#conversation').length===1,digest:document.querySelector('#digest-text').textContent.length>0}));
+    if(!back.single||!back.digest)throw Error('Return to world failed');
     // Long stream stays stable and scannable.
-    populated=true;await page.waitForFunction(()=>document.querySelectorAll('#conversation .message').length>50);
+    await page.locator('#view-chat').click();
+    populated=true;await page.waitForFunction(()=>document.querySelectorAll('#conversation .tline').length>50);
     await page.locator('#conversation').evaluate(el=>el.scrollTop=0);
     await page.waitForTimeout(200);tick++;
     await page.waitForFunction(()=>document.querySelector('#conversation').textContent.includes('Checking 1'));

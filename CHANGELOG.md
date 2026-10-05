@@ -6,6 +6,16 @@ changes always note the `config.py:CONFIG_VERSION` implication.
 
 ## Unreleased
 
+### Changed
+- Conversation sheet redesigned as a terminal emulator (visual/typographic
+  only): dark charcoal, system monospace, shell-transcript lines
+  (`you $`, `role >`, `[tool]`, `!`, `·`), hanging-indent wraps, streaming
+  block cursor, terminal titlebar (`engine — session — project`), toolbar
+  (filter/copy/clear-view), and a single `you $` prompt row that is now the
+  only task input. Sidebar keeps config controls plus a one-line digest;
+  behavior, streaming, and session handling unchanged. Covered by
+  `terminal-check.js`.
+
 ### Fixed
 - Systematic geometry pass: tester's door/portholes moved proud of the
   tower wall (were buried), bookshelf rebuilt as an open frame with books on
