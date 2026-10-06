@@ -181,31 +181,164 @@ function hasDiff(text) {
          /(?:^|\n)@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m.test(text);
 }
 
-function renderContentWithDiffs(container, text) {
-  const mdRegex = /([\s\S]*?)```diff\n([\s\S]*?)```([\s\S]*)/;
-  const blockRegex = /([\s\S]*?)\[diff_block_start\]\n?([\s\S]*?)\[diff_block_end\]([\s\S]*)/;
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
-  if (blockRegex.test(text)) {
-    const m = text.match(blockRegex);
-    if (m[1].trim()) renderContentWithDiffs(container, m[1]);
-    const parsed = parseUnifiedDiff(m[2]);
-    if (parsed.hunks.length) container.append(createDiffView(parsed));
-    else container.append(node('pre', m[2], 'raw-diff'));
-    if (m[3].trim()) renderContentWithDiffs(container, m[3]);
-    return;
+function formatInline(str) {
+  if (!str) return '';
+  let res = escapeHtml(str);
+  res = res.replace(/`([^`]+)`/g, '<code class="ag-inline-code">$1</code>');
+  res = res.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  res = res.replace(/(?:^|[^*])\*([^*]+)\*(?:[^*]|$)/g, (m, p1) => m.replace(`*${p1}*`, `<em>${p1}</em>`));
+  return res;
+}
+
+function highlight(lang, code) {
+  if (!['javascript', 'js', 'typescript', 'ts', 'json', 'css', 'html'].includes((lang || '').toLowerCase())) {
+    return escapeHtml(code);
+  }
+  
+  const rules = [
+    { type: 'hl-comment', regex: /^\/\/.*|^\/\*[\s\S]*?\*\// },
+    { type: 'hl-string', regex: /^("|'|`)(?:\\[\s\S]|(?!\1)[^\\])*\1/ },
+    { type: 'hl-keyword', regex: /^(?:const|let|var|function|return|if|else|for|while|import|export|class|extends|new|try|catch|switch|case|break|continue|await|async|true|false|null|undefined)\b/ },
+    { type: 'hl-number', regex: /^-?\d+(?:\.\d+)?\b/ },
+    { type: 'hl-function', regex: /^[a-zA-Z_$][a-zA-Z0-9_$]*(?=\s*\()/ }
+  ];
+
+  let out = '';
+  let i = 0;
+  while (i < code.length) {
+    let matched = false;
+    for (const rule of rules) {
+      const match = code.substring(i).match(rule.regex);
+      if (match) {
+        out += `<span class="${rule.type}">${escapeHtml(match[0])}</span>`;
+        i += match[0].length;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      out += escapeHtml(code[i]);
+      i++;
+    }
+  }
+  return out;
+}
+
+function createCodeBlock(lang, code) {
+  const wrapper = node('div', '', 'ag-code-block');
+  const head = node('div', '', 'code-head');
+  const langSpan = node('span', lang || 'code');
+  const copyBtn = node('button', 'Copy', 'code-copy-btn');
+  copyBtn.type = 'button';
+  head.append(langSpan, copyBtn);
+
+  const pre = node('pre');
+  const codeEl = node('code');
+  codeEl.innerHTML = highlight(lang, code);
+  pre.append(codeEl);
+  wrapper.append(head, pre);
+  return wrapper;
+}
+
+function renderMarkdownProse(container, text) {
+  const lines = text.split('\n');
+  let i = 0;
+
+  function flushParagraph(pLines) {
+    if (!pLines.length) return;
+    const p = node('p', '', 'ag-p');
+    p.innerHTML = pLines.map(formatInline).join('<br>');
+    container.append(p);
   }
 
-  if (mdRegex.test(text)) {
-    const m = text.match(mdRegex);
-    if (m[1].trim()) renderContentWithDiffs(container, m[1]);
-    const parsed = parseUnifiedDiff(m[2]);
-    if (parsed.hunks.length) container.append(createDiffView(parsed));
-    else container.append(node('pre', m[2], 'raw-diff'));
-    if (m[3].trim()) renderContentWithDiffs(container, m[3]);
-    return;
+  let pLines = [];
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      flushParagraph(pLines);
+      pLines = [];
+      i++;
+      continue;
+    }
+
+    const calloutMatch = trimmed.match(/^>\s*\[!(NOTE|TIP|WARNING|IMPORTANT)\]\s*$/i);
+    if (calloutMatch) {
+      flushParagraph(pLines);
+      pLines = [];
+      const cType = calloutMatch[1].toUpperCase();
+      const calloutLines = [];
+      i++;
+      while (i < lines.length && lines[i].trim().startsWith('>')) {
+        calloutLines.push(lines[i].trim().replace(/^>\s?/, ''));
+        i++;
+      }
+      const calloutEl = node('div', '', 'ag-callout ' + cType.toLowerCase());
+      const badge = node('div', cType, 'callout-badge');
+      const body = node('div', '', 'callout-body');
+      body.innerHTML = calloutLines.map(formatInline).join('<br>');
+      calloutEl.append(badge, body);
+      container.append(calloutEl);
+      continue;
+    }
+
+    if (trimmed.startsWith('# ') || trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
+      flushParagraph(pLines);
+      pLines = [];
+      if (trimmed.startsWith('### ')) {
+        const h = node('h3', '', 'ag-h3');
+        h.innerHTML = formatInline(trimmed.slice(4));
+        container.append(h);
+      } else if (trimmed.startsWith('## ')) {
+        const h = node('h2', '', 'ag-h2');
+        h.innerHTML = formatInline(trimmed.slice(3));
+        container.append(h);
+      } else {
+        const h = node('h1', '', 'ag-h1');
+        h.innerHTML = formatInline(trimmed.slice(2));
+        container.append(h);
+      }
+      i++;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(trimmed)) {
+      flushParagraph(pLines);
+      pLines = [];
+      const ul = node('ul', '', 'ag-list');
+      while (i < lines.length && /^[-*]\s+/.test(lines[i].trim())) {
+        const li = node('li', '');
+        li.innerHTML = formatInline(lines[i].trim().replace(/^[-*]\s+/, ''));
+        ul.append(li);
+        i++;
+      }
+      container.append(ul);
+      continue;
+    }
+
+    pLines.push(line);
+    i++;
   }
 
-  if (/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m.test(text)) {
+  flushParagraph(pLines);
+}
+
+function renderMarkdown(container, text) {
+  if (!text) return;
+
+  if (hasDiff(text) && !text.includes('```') && !text.includes('[diff_block_start]')) {
     const parsed = parseUnifiedDiff(text);
     if (parsed.hunks.length) {
       container.append(createDiffView(parsed));
@@ -213,107 +346,301 @@ function renderContentWithDiffs(container, text) {
     }
   }
 
-  container.append(document.createTextNode(text));
-}
+  const blockRegex = /(?:```([a-zA-Z0-9_-]*)\n([\s\S]*?)```|\[diff_block_start\]\n?([\s\S]*?)\[diff_block_end\])/g;
+  let lastIndex = 0;
+  let match;
 
-function card(author,text,kind='message',turnStart=false){
-  const role=roles.indexOf(author);
-  
-  if(kind==='status'&&text.includes('\n')){
-    const e=node('details','', 'tline status proc-step'+(turnStart?' turn-start':''));
-    if(role>=0)e.style.setProperty('--speaker',colors[role]);
-    const summary=node('summary','');
-    const pfx=node('span','·', 'pfx');
-    const firstLine=text.split('\n')[0].slice(0,120);
-    const body=node('span',author+' — '+firstLine+' ▾', 'tbody');
-    summary.append(pfx,body);
-    const pre=node('pre',text,'proc-content');
-    e.append(summary,pre);
-    return e;
-  }
-
-  if(kind==='tool_result'){
-    const e=node('details','', 'tline tool_result'+(turnStart?' turn-start':''));
-    if(role>=0)e.style.setProperty('--speaker',colors[role]);
-    const summary=node('summary','');
-    const pfx=node('span','[tool]', 'pfx');
-    const firstLine=text.split('\n')[0].slice(0,140);
-    const body=node('span',firstLine+' ▾', 'tbody');
-    summary.append(pfx,body);
-    e.append(summary);
-
-    if(hasDiff(text)){
-      const parsed=parseUnifiedDiff(text);
-      if(parsed.hunks.length){
-        e.append(createDiffView(parsed));
-      }else{
-        e.append(node('pre',text,'proc-content'));
-      }
-    }else{
-      e.append(node('pre',text,'proc-content'));
+  while ((match = blockRegex.exec(text)) !== null) {
+    const textBefore = text.slice(lastIndex, match.index);
+    if (textBefore.trim()) {
+      renderMarkdownProse(container, textBefore);
     }
-    return e;
-  }
+    lastIndex = match.index + match[0].length;
 
-  const e=node('div','', 'tline '+kind+(turnStart?' turn-start':''));
-  if(role>=0)e.style.setProperty('--speaker',colors[role]);
-  const pfx=node('span','', 'pfx'),body=node('span','', 'tbody');
-
-  if(kind==='user'){pfx.textContent='you $';body.textContent=text;}
-  else if(kind==='error'){pfx.textContent='!';body.textContent=displayError(text);}
-  else if(kind==='status'){pfx.textContent='·';body.textContent=author+' — '+text;}
-  else if(kind==='tool'){pfx.textContent='[tool]';body.textContent=author+' $ '+text;}
-  else if(kind==='history'){pfx.textContent='#';body.textContent=author+': '+text;}
-  else{
-    // Agent responses are NEVER hidden or collapsed
-    pfx.textContent=(role>=0?author.toLowerCase():author.toLowerCase())+' >';
-    const thinkMatch=text.match(/<(?:thinking|thought)>([\s\S]*?)<\/(?:thinking|thought)>/i);
-    if(thinkMatch){
-      const thinkContent=thinkMatch[1].trim();
-      const realText=text.replace(thinkMatch[0],'').trim();
-      const details=node('details','', 'proc-step');
-      const summ=node('summary','');
-      const sPfx=node('span','·', 'pfx');
-      const sBody=node('span','thought ('+thinkContent.split('\n').length+' lines) ▾', 'tbody dim');
-      summ.append(sPfx,sBody);
-      const pre=node('pre',thinkContent,'proc-content');
-      details.append(summ,pre);
-      body.append(details);
-      if(hasDiff(realText)){
-        renderContentWithDiffs(body,realText);
-      }else{
-        body.append(document.createTextNode(realText));
+    if (match[3] !== undefined) {
+      const diffContent = match[3];
+      const parsed = parseUnifiedDiff(diffContent);
+      if (parsed.hunks.length) {
+        container.append(createDiffView(parsed));
+      } else {
+        container.append(createCodeBlock('diff', diffContent));
       }
-    }else{
-      if(hasDiff(text)){
-        renderContentWithDiffs(body,text);
-      }else{
-        body.textContent=text;
+    } else {
+      const lang = (match[1] || '').trim().toLowerCase();
+      const code = match[2];
+      if (lang === 'diff' || hasDiff(code)) {
+        const parsed = parseUnifiedDiff(code);
+        if (parsed.hunks.length) {
+          container.append(createDiffView(parsed));
+        } else {
+          container.append(createCodeBlock(lang || 'diff', code));
+        }
+      } else {
+        container.append(createCodeBlock(lang || 'code', code));
       }
     }
   }
-  e.append(pfx,body);
-  return e;
+
+  const textRemaining = text.slice(lastIndex);
+  if (textRemaining.trim()) {
+    renderMarkdownProse(container, textRemaining);
+  }
 }
+
+const roleAvatars = { ARCHITECT: '📐', CODER: '💻', TESTER: '🔍', MANAGER: '📋' };
+const roleLabels = { ARCHITECT: 'Architect', CODER: 'Coder', TESTER: 'Tester', MANAGER: 'Manager' };
+const roleBadges = {
+  ARCHITECT: 'System Architecture',
+  CODER: 'Implementation & Tools',
+  TESTER: 'Quality & Verification',
+  MANAGER: 'Coordination & Review'
+};
+
+function card(author, text, kind = 'message', turnStart = false) {
+  const roleIdx = roles.indexOf(author);
+  const roleLower = roleIdx >= 0 ? author.toLowerCase() : 'agent';
+  const avatarChar = roleAvatars[author] || '✦';
+  const displayName = roleLabels[author] || (author ? (author[0] + author.slice(1).toLowerCase()) : 'Agent');
+  const badgeTitle = roleBadges[author] || 'AI Agent';
+  const speakerColor = roleIdx >= 0 ? colors[roleIdx] : 'var(--ag-blue)';
+
+  if (kind === 'user') {
+    const cardEl = node('div', '', 'ag-turn user tline user' + (turnStart ? ' turn-start' : ''));
+    let target = '';
+    if (author.includes('·')) {
+      const parts = author.split('·');
+      const targetRole = parts[1].trim();
+      target = roleLabels[targetRole] || targetRole;
+    }
+    const bubble = node('div', '', 'ag-user-bubble');
+    const meta = node('div', '', 'ag-user-meta');
+    const badge = node('span', 'YOU', 'ag-user-badge');
+    meta.append(badge);
+    if (target) {
+      const toSpan = node('span', 'to ' + target, 'ag-meta-info');
+      meta.append(toSpan);
+    }
+    const prompt = node('div', text, 'ag-user-prompt tbody');
+    bubble.append(meta, prompt);
+    cardEl.append(bubble);
+    return cardEl;
+  }
+
+  if (kind === 'error') {
+    const cardEl = node('div', '', 'ag-turn error tline error' + (turnStart ? ' turn-start' : ''));
+    const av = node('div', '!', 'ag-avatar');
+    const body = node('div', '', 'ag-turn-body');
+    const hdr = node('div', '', 'ag-turn-header');
+    const name = node('span', 'System Error', 'ag-speaker-name');
+    name.style.color = 'var(--ag-red)';
+    hdr.append(name);
+    const errBox = node('div', displayError(text), 'ag-error-box tbody');
+    body.append(hdr, errBox);
+    cardEl.append(av, body);
+    return cardEl;
+  }
+
+  if (kind === 'status') {
+    const cardEl = node('div', '', 'ag-turn status tline status' + (turnStart ? ' turn-start' : ''));
+    if (roleIdx >= 0) cardEl.style.setProperty('--speaker-color', speakerColor);
+    const av = node('div', '·', 'ag-avatar');
+    const body = node('div', '', 'ag-turn-body');
+    const hdr = node('div', '', 'ag-turn-header');
+    const name = node('span', author, 'ag-speaker-name');
+    const badge = node('span', 'Status', 'ag-role-badge');
+    hdr.append(name, badge);
+    const content = node('div', text, 'ag-status-text tbody');
+    content.style.fontSize = '12px';
+    content.style.color = 'var(--ag-text-muted)';
+    body.append(hdr, content);
+    cardEl.append(av, body);
+    return cardEl;
+  }
+
+  if (kind === 'tool') {
+    const cardEl = node('div', '', 'ag-turn agent tline tool' + (turnStart ? ' turn-start' : ''));
+    if (roleIdx >= 0) cardEl.style.setProperty('--speaker-color', speakerColor);
+    const av = node('div', avatarChar, 'ag-avatar ' + roleLower);
+    av.title = displayName;
+    const body = node('div', '', 'ag-turn-body');
+    const hdr = node('div', '', 'ag-turn-header');
+    const name = node('span', displayName, 'ag-speaker-name');
+    const rBadge = node('span', 'Tool Call', 'ag-role-badge');
+    hdr.append(name, rBadge);
+
+    let toolName = 'tool', toolSummary = text;
+    const sp = text.indexOf(' ');
+    if (sp > 0) {
+      toolName = text.slice(0, sp);
+      toolSummary = text.slice(sp + 1);
+    }
+
+    const details = node('details', '', 'ag-tool-card');
+    details.open = true;
+    const summary = node('summary', '', 'ag-tool-header');
+    const icon = node('span', '⚡', 'ag-tool-icon');
+    const tName = node('span', toolName, 'ag-tool-name');
+    const tSumm = node('span', toolSummary, 'ag-tool-summary');
+    const tStat = node('span', 'invoked', 'ag-tool-status success');
+    const chev = node('span', '▾', 'ag-chevron');
+    summary.append(icon, tName, tSumm, tStat, chev);
+
+    const tBody = node('div', '', 'ag-tool-body');
+    const pre = node('pre', text, 'ag-tool-output tbody');
+    tBody.append(pre);
+    details.append(summary, tBody);
+    body.append(hdr, details);
+    cardEl.append(av, body);
+    return cardEl;
+  }
+
+  if (kind === 'tool_result') {
+    const cardEl = node('div', '', 'ag-turn agent tline tool_result' + (turnStart ? ' turn-start' : ''));
+    if (roleIdx >= 0) cardEl.style.setProperty('--speaker-color', speakerColor);
+    const av = node('div', avatarChar, 'ag-avatar ' + roleLower);
+    av.title = displayName;
+    const body = node('div', '', 'ag-turn-body');
+    const hdr = node('div', '', 'ag-turn-header');
+    const name = node('span', displayName, 'ag-speaker-name');
+    const rBadge = node('span', 'Tool Result', 'ag-role-badge');
+    hdr.append(name, rBadge);
+
+    const details = node('details', '', 'ag-tool-card');
+    const summary = node('summary', '', 'ag-tool-header');
+    const icon = node('span', '▤', 'ag-tool-icon');
+
+    if (hasDiff(text)) {
+      details.open = true;
+      const parsed = parseUnifiedDiff(text);
+      const tName = node('span', 'diff', 'ag-tool-name');
+      const tSumm = node('span', parsed.file || 'code change', 'ag-tool-summary');
+      const tStat = node('span', 'applied', 'ag-tool-status success');
+      const chev = node('span', '▾', 'ag-chevron');
+      summary.append(icon, tName, tSumm, tStat, chev);
+
+      const tBody = node('div', '', 'ag-tool-body tbody');
+      if (parsed.hunks.length) {
+        tBody.append(createDiffView(parsed));
+      } else {
+        tBody.append(node('pre', text, 'ag-tool-output'));
+      }
+      details.append(summary, tBody);
+    } else {
+      const firstLine = text.split('\n')[0].slice(0, 100);
+      const tName = node('span', 'result', 'ag-tool-name');
+      const tSumm = node('span', firstLine || 'output', 'ag-tool-summary');
+      const tStat = node('span', 'completed', 'ag-tool-status success');
+      const chev = node('span', '▾', 'ag-chevron');
+      summary.append(icon, tName, tSumm, tStat, chev);
+
+      const tBody = node('div', '', 'ag-tool-body');
+      const pre = node('pre', text, 'ag-tool-output tbody');
+      tBody.append(pre);
+      details.append(summary, tBody);
+    }
+
+    body.append(hdr, details);
+    cardEl.append(av, body);
+    return cardEl;
+  }
+
+  const cardEl = node('div', '', 'ag-turn agent tline message ' + kind + (turnStart ? ' turn-start' : ''));
+  if (roleIdx >= 0) cardEl.style.setProperty('--speaker-color', speakerColor);
+  const av = node('div', avatarChar, 'ag-avatar ' + roleLower);
+  av.title = displayName;
+  const body = node('div', '', 'ag-turn-body');
+  const hdr = node('div', '', 'ag-turn-header');
+  const name = node('span', displayName, 'ag-speaker-name');
+  const rBadge = node('span', badgeTitle, 'ag-role-badge');
+  const metaInfo = node('span', '· Antigravity', 'ag-meta-info');
+  hdr.append(name, rBadge, metaInfo);
+  body.append(hdr);
+
+  const thinkMatch = text.match(/<(?:thinking|thought)>([\s\S]*?)<\/(?:thinking|thought)>/i);
+  let proseText = text;
+  if (thinkMatch) {
+    const thinkContent = thinkMatch[1].trim();
+    proseText = text.replace(thinkMatch[0], '').trim();
+
+    const drawer = node('details', '', 'ag-thinking-drawer');
+    const summary = node('summary', '');
+    const sparkle = node('span', '✦', 'ag-sparkle');
+    const label = node('span', 'Thinking Process', 'ag-thinking-label');
+    const linesCount = thinkContent.split('\n').length;
+    const metric = node('span', `(${linesCount} lines)`, 'ag-thinking-metric');
+    const chev = node('span', '▾', 'ag-chevron');
+    summary.append(sparkle, label, metric, chev);
+
+    const drawerBody = node('div', thinkContent, 'ag-thinking-content');
+    drawer.append(summary, drawerBody);
+    body.append(drawer);
+  }
+
+  const prose = node('div', '', 'ag-prose tbody');
+  renderMarkdown(prose, proseText);
+  body.append(prose);
+
+  cardEl.append(av, body);
+  return cardEl;
+}
+
 function renderConversation(jobs){
   if(!jobs.length){if(renderedMessages.size)resetConversation();return;}
-  $('conversation').querySelector('.term-empty')?.remove();
+  $('conversation').querySelector('.empty-state, .term-empty, .ag-empty-state')?.remove();
   const keep=new Set(),fragment=document.createDocumentFragment();
-  function upsert(id,author,text,kind,first=false){keep.add(id);const signature=author+'\0'+kind+'\0'+text,old=renderedMessages.get(id);if(old?.signature===signature){if(first)old.el.classList.add('turn-start');return;}const el=card(author,text,kind,first);if(old){if(old.el.open)el.open=true;old.el.replaceWith(el);}else fragment.append(el);renderedMessages.set(id,{el,signature});}
-  for(const job of jobs){upsert(job.id+'-prompt','YOU · '+job.role,job.message,'user',true);for(const e of job.events)upsert(e.id,e.author,e.text,e.kind);if(job.error&&!job.events.some(e=>e.kind==='error'))upsert(job.id+'-error','ERROR',job.error,'error');}
+  function upsert(id,author,text,kind,first=false){
+    keep.add(id);
+    const signature=author+'\0'+kind+'\0'+text,old=renderedMessages.get(id);
+    if(old?.signature===signature){if(first)old.el.classList.add('turn-start');return;}
+    const el=card(author,text,kind,first);
+    if(old){
+      const oldDetails=old.el.querySelectorAll('details');
+      const newDetails=el.querySelectorAll('details');
+      oldDetails.forEach((od,i)=>{if(od.open&&newDetails[i])newDetails[i].open=true;});
+      if(old.el.open)el.open=true;
+      old.el.replaceWith(el);
+    }else{
+      fragment.append(el);
+    }
+    renderedMessages.set(id,{el,signature});
+  }
+  for(const job of jobs){
+    upsert(job.id+'-prompt','YOU · '+job.role,job.message,'user',true);
+    for(const e of job.events)upsert(e.id,e.author,e.text,e.kind);
+    if(job.error&&!job.events.some(e=>e.kind==='error'))upsert(job.id+'-error','ERROR',job.error,'error');
+  }
   for(const [id,item] of renderedMessages){if(!keep.has(id)){item.el.remove();renderedMessages.delete(id);}}
   $('conversation').append(fragment);if(followingOutput)jumpLatest();else $('jump-latest').hidden=false;
   applyFilter();
 }
+
 function updateCursor(){
   document.querySelector('.cursor')?.remove();
+  document.querySelector('.ag-streaming-cursor')?.remove();
   if(!activeJob)return;
   const lines=$('conversation').querySelectorAll('.tline');
   const last=lines[lines.length-1];
   if(!last||!followingOutput)return;
-  const c=node('span','▊','cursor');(last.querySelector('.tbody')||last).append(c);
+  const c=node('span','','ag-streaming-cursor cursor');
+  (last.querySelector('.tbody')||last.querySelector('.ag-prose')||last).append(c);
 }
-function selectRole(role){selectedRole=role;$('role').value=role;$('pTitle').textContent=role[0]+role.slice(1).toLowerCase()+"’s workspace";$('pBody').textContent={ARCHITECT:'Blueprints, requirements and acceptance criteria.',CODER:'Implementation, tools and building things that work.',TESTER:'Independent checks, reproduction steps and test evidence.',MANAGER:'Review, decisions and the next steps for the team.'}[role];document.querySelectorAll('.agent-button').forEach(b=>b.classList.toggle('active',b.dataset.role===role));$('artifact').value={ARCHITECT:'plan',CODER:'report',TESTER:'test_report',MANAGER:'review'}[role];}
+
+function selectRole(role){
+  selectedRole=role;$('role').value=role;
+  $('pTitle').textContent=role[0]+role.slice(1).toLowerCase()+"’s workspace";
+  $('pBody').textContent={ARCHITECT:'Blueprints, requirements and acceptance criteria.',CODER:'Implementation, tools and building things that work.',TESTER:'Independent checks, reproduction steps and test evidence.',MANAGER:'Review, decisions and the next steps for the team.'}[role]||'Workspace';
+  document.querySelectorAll('.agent-button').forEach(b=>b.classList.toggle('active',b.dataset.role===role));
+  $('artifact').value={ARCHITECT:'plan',CODER:'report',TESTER:'test_report',MANAGER:'review'}[role]||'plan';
+  const roleIdx=roles.indexOf(role);
+  const roleName=role[0]+role.slice(1).toLowerCase();
+  const label=$('composer-role-label');
+  if(label)label.textContent=roleName;
+  const pill=$('composer-role-pill');
+  if(pill&&roleIdx>=0){
+    const dot=pill.querySelector('.ag-role-dot');
+    if(dot)dot.style.background=colors[roleIdx];
+  }
+}
 roles.forEach((role,i)=>{const b=node('button','', 'agent-button');b.dataset.role=role;b.style.setProperty('--role',colors[i]);b.append(node('i'),document.createTextNode(role[0]+role.slice(1).toLowerCase()));b.onclick=()=>selectRole(role);$('agent-bar').append(b);});
 selectRole('CODER');
 
@@ -444,6 +771,28 @@ $('term-copy').onclick=async()=>{
   $('term-copy').textContent='copied';setTimeout(()=>$('term-copy').textContent='copy',1200);
 };
 $('term-clear').onclick=()=>{$('conversation').classList.add('cleared');};
+$('conversation').addEventListener('click',async e=>{
+  const copyBtn=e.target.closest('.code-copy-btn');
+  if(copyBtn){
+    const block=copyBtn.closest('.ag-code-block');
+    const codeEl=block?.querySelector('pre code')||block?.querySelector('pre');
+    const text=codeEl?.textContent||'';
+    try{await navigator.clipboard.writeText(text);}
+    catch(err){const ta=node('textarea',text);document.body.append(ta);ta.select();document.execCommand('copy');ta.remove();}
+    copyBtn.textContent='Copied!';
+    setTimeout(()=>{copyBtn.textContent='Copy';},1500);
+    return;
+  }
+  const chip=e.target.closest('.ag-chip');
+  if(chip){
+    const txt=chip.textContent;
+    if(txt.includes('Plan')){selectRole('ARCHITECT');$('message').value='Plan system architecture for the current project';}
+    else if(txt.includes('Implement')){selectRole('CODER');$('message').value='Implement features and fix bugs';}
+    else if(txt.includes('Verify')){selectRole('TESTER');$('message').value='Verify acceptance criteria and run tests';}
+    else if(txt.includes('Review')){selectRole('MANAGER');$('message').value='Review pull requests and summarize next steps';}
+    $('message').focus();
+  }
+});
 $('prompt-form').onsubmit=async e=>{
   e.preventDefault();notice('');$('send').disabled=true;
   const requestScope=scope;
@@ -452,7 +801,7 @@ $('prompt-form').onsubmit=async e=>{
     await api('dispatch',{repo:$('repo').value,engine:$('engine').value,model:$('model').value,role:$('role').value,message:$('message').value,
       previous_id:$('followup').checked?lastJob?.id:null,base_url:$('base-url').value,key_env:$('key-env').value,
       session_id:selectedSession(),new_session:sessionMode==='new',new_title:$('session-title').value});
-    if(requestScope===scope){save(sessionKey(),selectedSession());if(sessionMode==='new')pendingNewSession=true;$('message').value='';firstPoll=false;await refresh();}
+    if(requestScope===scope){save(sessionKey(),selectedSession());if(sessionMode==='new')pendingNewSession=true;$('message').value='';$('message').style.height='';firstPoll=false;await refresh();}
   }catch(error){notice(error.message);}finally{if(!activeJob)$('send').disabled=false;}
 };
 $('stop').onclick=async()=>{if(!activeJob)return;try{await api('stop',{id:activeJob.id});await refresh();}catch(error){notice(error.message);}};
@@ -532,6 +881,22 @@ $('folder-go').onclick=()=>browse($('folder-path').value);$('folder-path').onkey
 $('folder-up').onclick=()=>browse(folderParent);
 $('folder-select').onclick=()=>{if(!folderPath)return;addRepo(folderPath);$('repo').value=folderPath;$('folder-dialog').close();scopeChange();};
 function addRepo(path){if(![...$('repo').options].some(o=>o.value===path)){const opt=node('option',path.split('/').pop()||path);opt.value=path;opt.title=path;$('repo').append(opt);}}
+
+$('message').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+  if (!this.value) this.style.height = '';
+});
+$('message').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    if (this.value.trim() && !$('send').disabled) {
+      // Simulate form submit logic manually if dispatchEvent doesn't trigger the onsubmit handler properly
+      $('send').click();
+    }
+  }
+});
+
 async function init(){
   setView(mainView);
   try{
