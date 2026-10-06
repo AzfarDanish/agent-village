@@ -627,22 +627,25 @@ function updateCursor(){
 
 function selectRole(role){
   selectedRole=role;$('role').value=role;
-  $('pTitle').textContent=role[0]+role.slice(1).toLowerCase()+"’s workspace";
-  $('pBody').textContent={ARCHITECT:'Blueprints, requirements and acceptance criteria.',CODER:'Implementation, tools and building things that work.',TESTER:'Independent checks, reproduction steps and test evidence.',MANAGER:'Review, decisions and the next steps for the team.'}[role]||'Workspace';
+  const isTeam = role === 'TEAM';
+  $('pTitle').textContent = isTeam ? "Full team's workspace" : role[0]+role.slice(1).toLowerCase()+"’s workspace";
+  $('pBody').textContent={ARCHITECT:'Blueprints, requirements and acceptance criteria.',CODER:'Implementation, tools and building things that work.',TESTER:'Independent checks, reproduction steps and test evidence.',MANAGER:'Review, decisions and the next steps for the team.',TEAM:'The full team of agents working together autonomously to solve the task.'}[role]||'Workspace';
   document.querySelectorAll('.agent-button').forEach(b=>b.classList.toggle('active',b.dataset.role===role));
-  $('artifact').value={ARCHITECT:'plan',CODER:'report',TESTER:'test_report',MANAGER:'review'}[role]||'plan';
+  $('artifact').value={ARCHITECT:'plan',CODER:'report',TESTER:'test_report',MANAGER:'review',TEAM:'history'}[role]||'plan';
   const roleIdx=roles.indexOf(role);
-  const roleName=role[0]+role.slice(1).toLowerCase();
+  const roleName = isTeam ? 'Full team' : role[0]+role.slice(1).toLowerCase();
   const label=$('composer-role-label');
   if(label)label.textContent=roleName;
   const pill=$('composer-role-pill');
-  if(pill&&roleIdx>=0){
+  if(pill){
     const dot=pill.querySelector('.ag-role-dot');
-    if(dot)dot.style.background=colors[roleIdx];
+    if(dot)dot.style.background=roleIdx>=0 ? colors[roleIdx] : '#9aa5b9';
   }
+  const sheetStatus=$('sheet-status');
+  if(sheetStatus)sheetStatus.textContent='Antigravity · '+roleName;
 }
 roles.forEach((role,i)=>{const b=node('button','', 'agent-button');b.dataset.role=role;b.style.setProperty('--role',colors[i]);b.append(node('i'),document.createTextNode(role[0]+role.slice(1).toLowerCase()));b.onclick=()=>selectRole(role);$('agent-bar').append(b);});
-selectRole('CODER');
+selectRole('TEAM');
 
 function clearBubbles(){bubbles.forEach(b=>{b.el.remove();b.line.remove();});bubbles=[];seen.clear();}
 function addBubble(e){
@@ -754,6 +757,7 @@ function engineNotice(){
   const avail=villageConfig?.engines?.[$('engine').value];
   if(avail&&!avail.command)notice('Engine not found on this machine: '+avail.hint);
 }
+$('role').onchange=()=>selectRole($('role').value);
 $('engine').onchange=()=>{modelOptions();engineNotice();scopeChange();};$('repo').onchange=scopeChange;
 $('model-provider').onchange=()=>{save('provider-'+$('engine').value,$('model-provider').value);filterModels();};
 $('model-picker').onchange=()=>{$('model').value=$('model-picker').value;save('model-'+$('engine').value,$('model').value);modelWarning();};

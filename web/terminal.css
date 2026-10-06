@@ -987,3 +987,79 @@
   .ag-turn { animation: none; }
   .cursor, .ag-streaming-cursor { animation: none; }
 }
+
+/* --------------------------------------------------------------------------
+   Mission Control Sidebar (Antigravity Theme)
+   -------------------------------------------------------------------------- */
+aside {
+  background: var(--ag-bg) !important;
+  border-left: 1px solid var(--ag-border) !important;
+  color: var(--ag-text) !important;
+}
+
+.mission-head {
+  border-bottom: none !important;
+}
+.mission-head h2 { color: var(--ag-text) !important; }
+.mission-head .eyebrow { color: var(--ag-text-muted) !important; }
+
+.session-meta {
+  border-bottom: 1px solid var(--ag-border) !important;
+  color: var(--ag-text-muted) !important;
+}
+
+.context-content {
+  background: var(--ag-surface) !important;
+  border: 1px solid var(--ag-border) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4) !important;
+  color: var(--ag-text) !important;
+}
+.context-content p { color: var(--ag-text-muted) !important; }
+.context-content summary { color: var(--ag-text-muted) !important; }
+
+#task-form {
+  background: var(--ag-surface) !important;
+  border-top: 1px solid var(--ag-border) !important;
+}
+
+#task-form label, .session-row label, .config-row label, .advanced-content label {
+  color: var(--ag-text-muted) !important;
+}
+
+#task-form select, #task-form input, .session-row select, .session-title-row input {
+  background: var(--ag-bg) !important;
+  border: 1px solid var(--ag-border) !important;
+  color: var(--ag-text) !important;
+}
+#task-form select:focus, #task-form input:focus {
+  border-color: var(--ag-border-focus) !important;
+  outline: none !important;
+}
+
+#task-form button, .session-row button, .session-title-row button, .context-content button {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ag-border) !important;
+  color: var(--ag-text) !important;
+}
+#task-form button:hover, .session-row button:hover, .session-title-row button:hover, .context-content button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: #3b4356 !important;
+}
+
+#run-status {
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: var(--ag-text-muted) !important;
+}
+#run-status[data-status="running"] {
+  background: rgba(52, 168, 83, 0.15) !important;
+  color: var(--ag-green) !important;
+}
+#run-status[data-status="failed"] {
+  background: rgba(234, 67, 53, 0.15) !important;
+  color: var(--ag-red) !important;
+}
+
+#active-role { font-family: var(--ag-font-mono) !important; color: var(--ag-text) !important; }
+#side-digest span.dim { color: var(--ag-text-dim) !important; }
+#digest-text { color: var(--ag-text-muted) !important; }
+#notice { color: var(--ag-red) !important; }
