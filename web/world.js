@@ -117,11 +117,27 @@ export function createWorld(onSelect) {
   // 3. Complete cobblestone path network via InstancedMesh (1 draw call)
   const pathMat=mat('#d8c7a5');
   const pathPoints=[];
-  for(let i=-6;i<=6;i++) pathPoints.push([i,0,.9,.92]);
-  for(let j=-5;j<=5;j++) if(Math.abs(j)>1) pathPoints.push([0,j,.92,.9]);
-  for(const sx of [-4,4]) for(let k=-1;k>=-3;k--) pathPoints.push([sx,k,.86,.86]);
-  [[-2.2,1.8],[-2.7,2.7],[-3.2,3.6],[-4.0,4.6],[2.2,1.8],[2.7,2.7],[3.2,3.6],[4.0,4.6]].forEach(([px,pz])=>pathPoints.push([px,pz,.86,.86]));
+  // Central ring & cross
+  for(let i=-2;i<=2;i++) pathPoints.push([i,0,.9,.92]);
+  for(let j=-2;j<=2;j++) if(Math.abs(j)>1) pathPoints.push([0,j,.92,.9]);
+  
+  // Connect each home dynamically to plaza
+  HOMES.forEach(([x,z]) => {
+    const angle = Math.atan2(-x, -z);
+    const startX = x + Math.sin(angle) * 1.5, startZ = z + Math.cos(angle) * 1.5;
+    const dist = Math.hypot(startX, startZ);
+    const steps = Math.floor(dist / 0.8);
+    for(let s=0; s<=steps; s++) {
+      const u = s/steps;
+      pathPoints.push([startX * (1-u), startZ * (1-u), .86, .86]);
+    }
+  });
+  
+  // Extra scenic paths
+  for(let i=-6; i<= -3; i++) pathPoints.push([i,0,.7,.7]); 
+  for(let i=3; i<= 6; i++) pathPoints.push([i,0,.7,.7]);
   [[-0.9,-1.8],[-1.4,-2.8],[-1.9,-3.8],[2.2,0.8],[3.1,1.2],[4.0,1.7]].forEach(([px,pz])=>pathPoints.push([px,pz,.72,.72]));
+
   const pathMesh=new THREE.InstancedMesh(box(1,.08,1),pathMat,pathPoints.length), pMat=new THREE.Matrix4();
   pathPoints.forEach(([px,pz,pw,pd],idx)=>{
     pMat.makeScale(pw,1,pd).setPosition(px,.04,pz);
@@ -156,6 +172,8 @@ export function createWorld(onSelect) {
   // 5. Four distinct architectural structures with zero overlaps and clean clearances
   function building(i){
     const [x,z]=HOMES[i],g=new THREE.Group();g.position.set(x,0,z);
+    const angle = Math.atan2(-x, -z);
+    g.rotation.y = angle;
     g.userData={role:ROLES[i],kind:'building',name:['Architect’s studio','Coder’s workshop','Tester’s lab','Manager’s hall'][i]};
     scene.add(g);pickables.push(g);
     const roofMaterial=mat(COLORS[i]);
@@ -451,8 +469,9 @@ export function createWorld(onSelect) {
     if(view.direction){
       view.progress=THREE.MathUtils.clamp(view.progress+view.direction*dt/.56,0,1);
       const p=view.progress,i=ROLES.indexOf(view.role),home=HOMES[i],saved=view.saved;
-      if(p<.5){const q=p*2,s=q*q*(3-2*q);camera.position.copy(saved.position).lerp(new THREE.Vector3(home[0]+2.3,3.4,home[1]+5),s);controls.target.copy(saved.target).lerp(new THREE.Vector3(home[0],.9,home[1]+.8),s);camera.zoom=THREE.MathUtils.lerp(saved.zoom,3.4,s);}
-      else {const q=(p-.5)*2,s=q*q*(3-2*q);camera.position.set(5,6,8).lerp(new THREE.Vector3(9,10,12),s);controls.target.set(0,.6,0);camera.zoom=THREE.MathUtils.lerp(3.4,officeZoom(),s);}
+      const ease = q => q < 0.5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+      if(p<.5){const q=p*2,s=ease(q);camera.position.copy(saved.position).lerp(new THREE.Vector3(home[0]+2.3,3.4,home[1]+5),s);controls.target.copy(saved.target).lerp(new THREE.Vector3(home[0],.9,home[1]+.8),s);camera.zoom=THREE.MathUtils.lerp(saved.zoom,3.4,s);}
+      else {const q=(p-.5)*2,s=ease(q);camera.position.set(5,6,8).lerp(new THREE.Vector3(9,10,12),s);controls.target.set(0,.6,0);camera.zoom=THREE.MathUtils.lerp(3.4,officeZoom(),s);}
       camera.lookAt(controls.target);camera.updateProjectionMatrix();
       veil.style.opacity=String(Math.pow(Math.sin(Math.PI*p),10));
       officeTitle.hidden=p<.5;
@@ -468,7 +487,9 @@ export function createWorld(onSelect) {
   function setHover(object){
     if(view.role)object=null;
     if(object===hovered)return;
-    hovered=object;outline.visible=!!object;tooltip.hidden=!object;canvas.style.cursor=object?'pointer':'';
+    hovered=object;
+    frame.setTargetOpacity(object ? 1 : 0);
+    tooltip.hidden=!object;canvas.style.cursor=object?'pointer':'';
     if(!object)return;
     tooltip.textContent=object.userData.name+' · '+(object.userData.kind==='character'?'Agent':'Building');
     tooltip.dataset.kind=object.userData.kind;tooltip.dataset.role=object.userData.role;
@@ -485,11 +506,14 @@ export function createWorld(onSelect) {
   function updateHover(){
     if(view.role){setHover(null);return;}
     if(pointerInside&&!dragging)setHover(pick());
+    let target = null;
+    if(hovered) {
+      const house=houses.find(h=>h.group===hovered);
+      target = house ? house.structure : hovered;
+      hoverBounds.setFromObject(target, true);
+    }
+    frame.update(target,time,!paused&&!media.matches,camera);
     if(!hovered)return;
-    const house=houses.find(h=>h.group===hovered);
-    // Precise vertices avoid the oversized AABB produced by a rotated cone's local box.
-    hoverBounds.setFromObject(house?house.structure:hovered,true).expandByScalar(.045);
-    frame.update(hoverBounds,time,!paused&&!media.matches,camera);
     const anchor=new THREE.Vector3((hoverBounds.min.x+hoverBounds.max.x)/2,hoverBounds.max.y+.25,(hoverBounds.min.z+hoverBounds.max.z)/2).project(camera);
     const x=Math.max(8,Math.min(stage.clientWidth-tooltip.offsetWidth-8,(anchor.x+1)*stage.clientWidth/2-tooltip.offsetWidth/2));
     const y=Math.max(8,Math.min(stage.clientHeight-tooltip.offsetHeight-8,(1-anchor.y)*stage.clientHeight/2-tooltip.offsetHeight));
@@ -503,7 +527,11 @@ export function createWorld(onSelect) {
     for(let i=0; i<4; i++) {
       const hx = HOMES[i][0], hz = HOMES[i][1];
       const dx = x - hx, dz = z - hz;
-      if (Math.abs(dx) < 1.2 && dz > -1.2 && dz < 0.6) return true;
+      const angle = Math.atan2(-hx, -hz);
+      const cos = Math.cos(-angle), sin = Math.sin(-angle);
+      const lx = dx * cos - dz * sin;
+      const lz = dx * sin + dz * cos;
+      if (Math.abs(lx) < 1.4 && lz > -1.2 && lz < 1.0) return true;
     }
     if (Math.hypot(x - 5.5, z - 1.7) < 1.3 && Math.abs(z - 1.7) > 0.4) return true;
     if (Math.hypot(x - -1.9, z - -4.8) < 1.0) return true;
@@ -581,10 +609,14 @@ export function createWorld(onSelect) {
   function workerStep(v,i,working,dt){
     const h=houses[i],[x,z]=v.home;
     const phase=p=>{v.phase=p;v.phaseAt=time;};
-    if(media.matches){v.phase=working?'inside':'outside';v.group.visible=!working;h.door=0;h.hinge.rotation.y=0;if(!working&&v.mode==='work'){v.group.position.set(x,0,z+1.65);v.mode='';}return {handled:working,moving:false};}
+    const angle = Math.atan2(-x, -z);
+    const approachVec = new THREE.Vector3(x + Math.sin(angle)*1.65, 0, z + Math.cos(angle)*1.65);
+    const insideVec = new THREE.Vector3(x + Math.sin(angle)*0.69, 0, z + Math.cos(angle)*0.69);
+    
+    if(media.matches){v.phase=working?'inside':'outside';v.group.visible=!working;h.door=0;h.hinge.rotation.y=0;if(!working&&v.mode==='work'){v.group.position.copy(approachVec);v.mode='';}return {handled:working,moving:false};}
     if(working&&v.phase==='outside'){
       phase('approaching');v.mode='work';v.glanceAt=-Infinity;
-      v.route=findPath(v.group.position, new THREE.Vector3(x,0,z+1.65));
+      v.route=findPath(v.group.position, approachVec);
       v.hintText = 'heading to work';
     }
     if(!working&&['approaching','opening','entering'].includes(v.phase)){
@@ -597,11 +629,11 @@ export function createWorld(onSelect) {
     }
     let moving=false,open=['opening','entering','exit-opening','exiting'].includes(v.phase);
     if(!paused){
-      h.door=THREE.MathUtils.damp(h.door,open?1:0,12,dt);h.hinge.rotation.y=-h.door*Math.PI*.58;
-      if(v.phase==='approaching'){moving=advanceRoute(v,dt);if(!v.route.length){phase('opening');v.facing=Math.PI;playTone('door-enter');}}
-      else if(v.phase==='opening'&&h.door>.94){phase('entering');v.route=[new THREE.Vector3(x,0,z+.69)];}
+      h.door=THREE.MathUtils.damp(h.door,open?1:0,6,dt);h.hinge.rotation.y=-h.door*Math.PI*.58;
+      if(v.phase==='approaching'){moving=advanceRoute(v,dt);if(!v.route.length){phase('opening');v.facing=angle+Math.PI;playTone('door-enter');}}
+      else if(v.phase==='opening'&&h.door>.94){phase('entering');v.route=[insideVec];}
       else if(v.phase==='entering'){moving=advanceRoute(v,dt);if(!v.route.length){phase('inside');v.group.visible=false;playTone('work-start');}}
-      else if(v.phase==='exit-opening'&&h.door>.94){phase('exiting');v.group.visible=true;v.group.position.set(x,0,z+.69);v.route=[new THREE.Vector3(x,0,z+1.65)];v.hintText = 'leaving work';}
+      else if(v.phase==='exit-opening'&&h.door>.94){phase('exiting');v.group.visible=true;v.group.position.copy(insideVec);v.route=[approachVec];v.hintText = 'leaving work';}
       else if(v.phase==='exiting'){moving=advanceRoute(v,dt);if(!v.route.length){phase('outside');v.mode='';v.hintText='';}}
     }
     return {handled:v.phase!=='outside',moving};
@@ -655,15 +687,32 @@ export function createWorld(onSelect) {
             v.route.shift();
             if(!v.route.length) v.hintText = '';
           }else{
-            v.group.position.addScaledVector(delta,Math.min(dist,dt*1.2)/dist);
-            v.facing=Math.atan2(delta.x,delta.z);moving=true;
+            v.speed = THREE.MathUtils.damp(v.speed || 0, 1.2, 5, dt);
+            v.group.position.addScaledVector(delta,Math.min(dist,dt*v.speed)/dist);
+            const targetFacing = Math.atan2(delta.x,delta.z);
+            const diff = ((targetFacing - (v.facing||0) + Math.PI*3) % (Math.PI*2)) - Math.PI;
+            v.facing = (v.facing||0) + diff * Math.min(1, dt * 8);
+            moving=true;
           }
         }
       }
+      if (!moving) v.speed = THREE.MathUtils.damp(v.speed || 0, 0, 5, dt);
       const stride=moving?Math.sin(time*11+i)*.55:0;v.legs[0].rotation.x=stride;v.legs[1].rotation.x=-stride;v.arms[0].rotation.x=-stride;v.arms[1].rotation.x=stride;
-      v.body.position.y=moving?Math.abs(Math.sin(time*11+i))*.035:0;
+      v.bob = THREE.MathUtils.damp(v.bob || 0, moving ? 1 : 0, 6, dt);
+      v.body.position.y=v.bob * Math.abs(Math.sin(time*11+i))*.035;
+      v.body.rotation.z=v.bob * Math.sin(time*5.5+i)*.03;
+      if(!moving && !working && !worker.handled && !paused) {
+         v.body.rotation.y = Math.sin(time*1.5 + i)*0.08;
+         v.body.position.y = Math.sin(time*2.5 + i)*0.01;
+      } else {
+         v.body.rotation.y = 0;
+      }
       if(working&&!moving&&!paused)v.arms[1].rotation.x=-.55+Math.sin(time*4)*.2;
-      if(meeting&&!moving&&!worker.handled)v.facing=Math.atan2(-v.group.position.x,-v.group.position.z);
+      if(meeting&&!moving&&!worker.handled){
+         const targetFacing = Math.atan2(-v.group.position.x,-v.group.position.z);
+         const diff = ((targetFacing - (v.facing||0) + Math.PI*3) % (Math.PI*2)) - Math.PI;
+         v.facing = (v.facing||0) + diff * Math.min(1, dt * 6);
+      }
       v.group.rotation.y=glancing?(glanceAge<160?turn(v.glanceFrom,v.glanceTo,glanceAge/160):glanceAge<720?v.glanceTo:turn(v.glanceTo,v.facing,(glanceAge-720)/180)):v.facing;
       lamps[i].material.emissiveIntensity=evening?2:working?1+.2*Math.sin(time*3):.15;
       if(offices.has(v.role))offices.get(v.role).update(time,v.phase==='inside',paused||media.matches);
@@ -681,7 +730,7 @@ export function createWorld(onSelect) {
       }
     });
     wind.forEach(w=>{w.node.rotation.z=Math.sin(time*1.2+w.phase)*(w.flag?.09:.025);});
-    smoke.forEach(s=>{const f=(time*.14+s.phase)%1;s.node.position.set(s.x+Math.sin(f*4)*.18,(s.y0||2.65)+f*1.3,s.z);s.node.scale.setScalar(.7+f*1.6);s.node.material.opacity=(1-f)*.35;});
+    smoke.forEach(s=>{const f=(time*.14+s.phase)%1;s.node.position.set(s.x+Math.sin(f*4)*.18,(s.y0||2.65)+f*1.3,s.z);s.node.scale.setScalar(.7+f*1.6);s.node.material.opacity=(1-f)*(1-f)*.4;});
     beacons.forEach(b=>{b.material.emissiveIntensity=(current==='TESTER'?1.2+Math.sin(time*5)*.8:.25);});
     ripples.forEach((r,i)=>{r.scale.setScalar(1+Math.sin(time*1.7+i)*.08);});mill.rotation.z=time*.35;
     const activeScene=updateView(dt);if(!view.direction)controls.update();scene.updateMatrixWorld(true);updateHover();renderer.render(activeScene,camera);window.dispatchEvent(new CustomEvent('village-frame'));
@@ -699,7 +748,14 @@ export function createWorld(onSelect) {
     diagnostics(){return {renderer:'WebGL',characters:villagers.length,buildings:HOMES.length,drawCalls:renderer.info.render.calls,triangles:renderer.info.render.triangles,hovered:hovered?.userData||null,outlineVisible:outline.visible,hoverFrame:frame.counts(),
       view:{role:view.role,progress:view.progress,direction:view.direction,camera:camera.position.toArray(),zoom:camera.zoom},
       office:view.role?{name:officeFor(view.role).palette.name,walls:officeFor(view.role).wallCount,furniture:Object.keys(officeFor(view.role).assets),occupant:officeFor(view.role).occupant.visible}:null,
-      houses:houses.map((h,i)=>({role:ROLES[i],door:h.door,structureSize:new THREE.Box3().setFromObject(h.structure,true).getSize(new THREE.Vector3()).toArray()})),
+      houses:houses.map((h,i)=>{
+        if(!h.structure.userData.localBox){
+          const box=new THREE.Box3(),inv=new THREE.Matrix4().copy(h.structure.matrixWorld).invert(),v=new THREE.Vector3();
+          h.structure.traverse(c=>{if(c.isMesh&&c.geometry){const p=c.geometry.attributes.position;if(!p)return;const m=new THREE.Matrix4().multiplyMatrices(inv,c.matrixWorld);for(let k=0;k<p.count;k++){v.fromBufferAttribute(p,k).applyMatrix4(m);box.expandByPoint(v);}}});
+          h.structure.userData.localBox=box;
+        }
+        return {role:ROLES[i],door:h.door,structureSize:h.structure.userData.localBox.getSize(new THREE.Vector3()).toArray()};
+      }),
       targets:pickables.map(o=>{const p=o.position.clone().add(new THREE.Vector3(0,o.userData.kind==='character'?.65:1,0)).project(camera);return {...o.userData,x:(p.x+1)/2*stage.clientWidth,y:(1-p.y)/2*stage.clientHeight};}),
       charactersState:villagers.map(v=>({role:v.role,phase:v.phase,visible:v.group.visible,position:v.group.position.toArray(),heading:v.group.rotation.y,facing:v.facing,glanceAt:v.glanceAt,glanceTo:v.glanceTo}))};}
   };

@@ -6,3 +6,24 @@ body{margin:0}button,input,textarea,select{font:inherit}button,select{cursor:poi
 @media(prefers-reduced-motion:reduce){button{transition:background 160ms ease}button:active{transform:none}.bubble{transition:opacity 180ms ease}}
 #model-provider,#model-picker{width:100%;font-size:12px}#model-warning{font-size:11px;line-height:1.6;color:#945a34;background:#f7eddc;padding:10px;border-radius:8px}#world-hover{position:absolute;left:0;top:0;pointer-events:none;z-index:5;max-width:calc(100% - 16px);background:#243c32ed;color:#fff8df;border:1px solid #f9e3a166;border-radius:8px;padding:8px 11px;box-shadow:0 4px 16px #182d2422;font-size:11px;white-space:nowrap}
 #exit-house{position:absolute;top:22px;left:22px;z-index:8;background:#fff8e8;border:2px solid #d4b777;border-radius:14px;box-shadow:0 4px 0 #4b51462b;font-weight:700;padding:12px 17px}#office-title{position:absolute;top:82px;left:25px;pointer-events:none;background:#fff9eddc;padding:11px 16px;border-radius:12px;z-index:4;max-width:calc(100% - 50px)}#office-title strong{display:block;font-family:Georgia,serif;font-size:23px;font-weight:400}#office-title span{display:block;font-size:11px;color:#65725e;margin-top:5px}#office-transition{position:absolute;inset:0;background:#eee8d8;opacity:0;pointer-events:none;z-index:6}.in-office .world-title{display:none}.in-office #world-hover{display:none!important}.in-office #night{visibility:hidden}
+
+/* Animation additions */
+aside {
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
+}
+dialog[open] {
+  animation: dialog-in 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+dialog::backdrop {
+  animation: backdrop-in 0.3s ease;
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+details { transition: background-color 0.2s ease; }
+summary { transition: color 0.2s ease; }

@@ -35,22 +35,264 @@ function displayError(text){
   if(text.includes("free tier can only be used from within OpenCode"))return 'OpenCode’s provider rejected this free-tier request (HTTP 403). Choose a different model provider, such as RapidScreen or OpenRouter, with valid credentials. The village cannot override this provider restriction.';
   return text;
 }
+function parseUnifiedDiff(diffText) {
+  const lines = diffText.split('\n');
+  let oldFile = '', newFile = '';
+  const hunks = [];
+  let currentHunk = null;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.startsWith('--- ')) {
+      oldFile = line.slice(4).replace(/^[ab]\//, '').trim();
+    } else if (line.startsWith('+++ ')) {
+      newFile = line.slice(4).replace(/^[ab]\//, '').trim();
+    } else if (line.startsWith('diff --git ')) {
+      const m = line.match(/diff --git a\/(.+?) b\/(.+)/);
+      if (m) { oldFile = m[1]; newFile = m[2]; }
+    } else if (/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.test(line)) {
+      const m = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/);
+      currentHunk = {
+        oldStart: parseInt(m[1], 10),
+        newStart: parseInt(m[2], 10),
+        header: m[0].trim(),
+        heading: (m[3] || '').trim(),
+        rows: []
+      };
+      hunks.push(currentHunk);
+      let oldLn = currentHunk.oldStart;
+      let newLn = currentHunk.newStart;
+
+      let removals = [];
+      let additions = [];
+
+      function flushChanges() {
+        const count = Math.max(removals.length, additions.length);
+        for (let k = 0; k < count; k++) {
+          currentHunk.rows.push({
+            type: 'change',
+            left: removals[k] || null,
+            right: additions[k] || null
+          });
+        }
+        removals = [];
+        additions = [];
+      }
+
+      while (i + 1 < lines.length) {
+        const nextLine = lines[i + 1];
+        if (nextLine.startsWith('@@ ') || nextLine.startsWith('diff --git ') || nextLine.startsWith('--- ') || nextLine.startsWith('[diff_block_end]')) {
+          break;
+        }
+        i++;
+        const hl = lines[i];
+        if (hl.startsWith('+')) {
+          additions.push({ ln: newLn++, text: hl.slice(1) });
+        } else if (hl.startsWith('-')) {
+          removals.push({ ln: oldLn++, text: hl.slice(1) });
+        } else if (hl.startsWith(' ')) {
+          flushChanges();
+          currentHunk.rows.push({
+            type: 'context',
+            left: { ln: oldLn++, text: hl.slice(1) },
+            right: { ln: newLn++, text: hl.slice(1) }
+          });
+        } else if (hl.trim() === '') {
+          flushChanges();
+          currentHunk.rows.push({
+            type: 'context',
+            left: { ln: oldLn++, text: '' },
+            right: { ln: newLn++, text: '' }
+          });
+        }
+      }
+      flushChanges();
+    }
+  }
+
+  return { file: newFile || oldFile || 'code change', hunks };
+}
+
+function createDiffView(diffData) {
+  const container = node('div', '', 'diff-view');
+  
+  // Header with file path and hunk headers
+  const hdr = node('div', '', 'diff-header');
+  const fileSpan = node('span', diffData.file || 'Code change', 'diff-file');
+  const infoSpan = node('span', diffData.hunks.map(h => h.header).join('  ') || '', 'diff-hunk-info');
+  hdr.append(fileSpan, infoSpan);
+  container.append(hdr);
+
+  // Column titles: OLD vs NEW
+  const colsHead = node('div', '', 'diff-cols-head');
+  const oldTitle = node('div', 'OLD (PREV)', 'diff-col-title');
+  const newTitle = node('div', 'NEW (CURRENT)', 'diff-col-title');
+  colsHead.append(oldTitle, newTitle);
+  container.append(colsHead);
+
+  // Grid of lines
+  const grid = node('div', '', 'diff-grid');
+  for (const hunk of diffData.hunks) {
+    for (const row of hunk.rows) {
+      if (row.type === 'context') {
+        const leftCell = node('div', '', 'diff-cell left context');
+        const lLn = node('span', String(row.left.ln), 'diff-ln');
+        const lTxt = node('span', row.left.text, 'diff-txt');
+        leftCell.append(lLn, lTxt);
+
+        const rightCell = node('div', '', 'diff-cell right context');
+        const rLn = node('span', String(row.right.ln), 'diff-ln');
+        const rTxt = node('span', row.right.text, 'diff-txt');
+        rightCell.append(rLn, rTxt);
+
+        grid.append(leftCell, rightCell);
+      } else {
+        const leftCell = node('div', '', 'diff-cell left ' + (row.left ? 'del' : 'empty'));
+        if (row.left) {
+          const lLn = node('span', String(row.left.ln), 'diff-ln');
+          const lTxt = node('span', '-' + row.left.text, 'diff-txt');
+          leftCell.append(lLn, lTxt);
+        } else {
+          leftCell.append(node('span', '', 'diff-ln'), node('span', '', 'diff-txt'));
+        }
+
+        const rightCell = node('div', '', 'diff-cell right ' + (row.right ? 'add' : 'empty'));
+        if (row.right) {
+          const rLn = node('span', String(row.right.ln), 'diff-ln');
+          const rTxt = node('span', '+' + row.right.text, 'diff-txt');
+          rightCell.append(rLn, rTxt);
+        } else {
+          rightCell.append(node('span', '', 'diff-ln'), node('span', '', 'diff-txt'));
+        }
+
+        grid.append(leftCell, rightCell);
+      }
+    }
+  }
+  container.append(grid);
+  return container;
+}
+
+function hasDiff(text) {
+  return /```diff\n/m.test(text) ||
+         /\[diff_block_start\]/m.test(text) ||
+         /(?:^|\n)diff --git /m.test(text) ||
+         /(?:^|\n)--- (?:a\/|[^\n]+)\n\+\+\+ (?:b\/|[^\n]+)/m.test(text) ||
+         /(?:^|\n)@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m.test(text);
+}
+
+function renderContentWithDiffs(container, text) {
+  const mdRegex = /([\s\S]*?)```diff\n([\s\S]*?)```([\s\S]*)/;
+  const blockRegex = /([\s\S]*?)\[diff_block_start\]\n?([\s\S]*?)\[diff_block_end\]([\s\S]*)/;
+
+  if (blockRegex.test(text)) {
+    const m = text.match(blockRegex);
+    if (m[1].trim()) renderContentWithDiffs(container, m[1]);
+    const parsed = parseUnifiedDiff(m[2]);
+    if (parsed.hunks.length) container.append(createDiffView(parsed));
+    else container.append(node('pre', m[2], 'raw-diff'));
+    if (m[3].trim()) renderContentWithDiffs(container, m[3]);
+    return;
+  }
+
+  if (mdRegex.test(text)) {
+    const m = text.match(mdRegex);
+    if (m[1].trim()) renderContentWithDiffs(container, m[1]);
+    const parsed = parseUnifiedDiff(m[2]);
+    if (parsed.hunks.length) container.append(createDiffView(parsed));
+    else container.append(node('pre', m[2], 'raw-diff'));
+    if (m[3].trim()) renderContentWithDiffs(container, m[3]);
+    return;
+  }
+
+  if (/^@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@/m.test(text)) {
+    const parsed = parseUnifiedDiff(text);
+    if (parsed.hunks.length) {
+      container.append(createDiffView(parsed));
+      return;
+    }
+  }
+
+  container.append(document.createTextNode(text));
+}
+
 function card(author,text,kind='message',turnStart=false){
   const role=roles.indexOf(author);
-  const e=node(kind==='tool_result'?'details':'div','', 'tline '+kind+(turnStart?' turn-start':''));
+  
+  if(kind==='status'&&text.includes('\n')){
+    const e=node('details','', 'tline status proc-step'+(turnStart?' turn-start':''));
+    if(role>=0)e.style.setProperty('--speaker',colors[role]);
+    const summary=node('summary','');
+    const pfx=node('span','·', 'pfx');
+    const firstLine=text.split('\n')[0].slice(0,120);
+    const body=node('span',author+' — '+firstLine+' ▾', 'tbody');
+    summary.append(pfx,body);
+    const pre=node('pre',text,'proc-content');
+    e.append(summary,pre);
+    return e;
+  }
+
+  if(kind==='tool_result'){
+    const e=node('details','', 'tline tool_result'+(turnStart?' turn-start':''));
+    if(role>=0)e.style.setProperty('--speaker',colors[role]);
+    const summary=node('summary','');
+    const pfx=node('span','[tool]', 'pfx');
+    const firstLine=text.split('\n')[0].slice(0,140);
+    const body=node('span',firstLine+' ▾', 'tbody');
+    summary.append(pfx,body);
+    e.append(summary);
+
+    if(hasDiff(text)){
+      const parsed=parseUnifiedDiff(text);
+      if(parsed.hunks.length){
+        e.append(createDiffView(parsed));
+      }else{
+        e.append(node('pre',text,'proc-content'));
+      }
+    }else{
+      e.append(node('pre',text,'proc-content'));
+    }
+    return e;
+  }
+
+  const e=node('div','', 'tline '+kind+(turnStart?' turn-start':''));
   if(role>=0)e.style.setProperty('--speaker',colors[role]);
   const pfx=node('span','', 'pfx'),body=node('span','', 'tbody');
+
   if(kind==='user'){pfx.textContent='you $';body.textContent=text;}
   else if(kind==='error'){pfx.textContent='!';body.textContent=displayError(text);}
   else if(kind==='status'){pfx.textContent='·';body.textContent=author+' — '+text;}
   else if(kind==='tool'){pfx.textContent='[tool]';body.textContent=author+' $ '+text;}
   else if(kind==='history'){pfx.textContent='#';body.textContent=author+': '+text;}
-  else{pfx.textContent=(role>=0?author.toLowerCase():author.toLowerCase())+' >';body.textContent=text;}
-  if(kind==='tool_result'){
-    const summary=node('summary','');summary.append(pfx,body);
-    body.textContent=text.split('\n')[0].slice(0,140);
-    const pre=node('pre',text);e.append(summary,pre);
-  }else e.append(pfx,body);
+  else{
+    // Agent responses are NEVER hidden or collapsed
+    pfx.textContent=(role>=0?author.toLowerCase():author.toLowerCase())+' >';
+    const thinkMatch=text.match(/<(?:thinking|thought)>([\s\S]*?)<\/(?:thinking|thought)>/i);
+    if(thinkMatch){
+      const thinkContent=thinkMatch[1].trim();
+      const realText=text.replace(thinkMatch[0],'').trim();
+      const details=node('details','', 'proc-step');
+      const summ=node('summary','');
+      const sPfx=node('span','·', 'pfx');
+      const sBody=node('span','thought ('+thinkContent.split('\n').length+' lines) ▾', 'tbody dim');
+      summ.append(sPfx,sBody);
+      const pre=node('pre',thinkContent,'proc-content');
+      details.append(summ,pre);
+      body.append(details);
+      if(hasDiff(realText)){
+        renderContentWithDiffs(body,realText);
+      }else{
+        body.append(document.createTextNode(realText));
+      }
+    }else{
+      if(hasDiff(text)){
+        renderContentWithDiffs(body,text);
+      }else{
+        body.textContent=text;
+      }
+    }
+  }
+  e.append(pfx,body);
   return e;
 }
 function renderConversation(jobs){

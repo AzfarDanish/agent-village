@@ -1,6 +1,6 @@
 /* Terminal sheet: shell-transcript look over the existing layout shell. */
 :root{
-  --term-bg:#14161b; --term-bg2:#1b1e25; --term-line:#262b35;
+  --term-bg:#121418; --term-bg2:#181b22; --term-line:#262c37;
   --term-text:#c9cdd4; --term-dim:#7d8590; --term-faint:#4b515b;
   --term-green:#7fb069; --term-red:#d9705e; --term-cyan:#6aa7a8;
   --term-amber:#c9a15e; --term-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"DejaVu Sans Mono",monospace;
@@ -19,11 +19,11 @@
 #sheet-slot .conversation-wrap{position:relative}
 #sheet-slot #conversation{max-width:none;margin:0;padding:14px 18px 20px;font-family:var(--term-mono);user-select:text;-webkit-user-select:text}
 .term-scan{position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,transparent 0 3px,rgba(255,255,255,.012) 3px 4px);z-index:3}
-#conversation .tline{display:flex;gap:.7em;padding:1px 0;margin:0;border:0;background:none;font-family:var(--term-mono);font-size:12px;line-height:1.7;color:var(--term-text);white-space:normal;overflow-wrap:anywhere;content-visibility:auto;contain-intrinsic-size:auto 30px}
-#conversation .tline.turn-start{margin-top:1.1em}
+#conversation .tline{display:flex;gap:.7em;align-items:baseline;padding:1px 0;margin:0;border:0;background:none;font-family:var(--term-mono);font-size:12px;line-height:1.7;color:var(--term-text);white-space:normal;overflow-wrap:anywhere;content-visibility:auto;contain-intrinsic-size:auto 30px}
+#conversation .tline.turn-start{margin-top:1.2em}
 #conversation .tline:first-child{margin-top:0}
-#conversation .pfx{flex:none;color:var(--term-dim);user-select:none;-webkit-user-select:none}
-#conversation .tbody{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;user-select:text;-webkit-user-select:text}
+#conversation .pfx{flex:none;color:var(--speaker,var(--term-dim));user-select:none;-webkit-user-select:none;font-weight:600}
+#conversation .tbody{flex:1;white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;user-select:text;-webkit-user-select:text}
 #conversation .tline.user .pfx{color:var(--term-green)}
 #conversation .tline.user .tbody{color:#e8ebef}
 #conversation .tline .pfx.dim,#conversation .tbody.dim{color:var(--term-faint)}
@@ -32,28 +32,47 @@
 #conversation .tline.status .pfx,#conversation .tline.status .tbody{color:var(--term-faint);font-size:11px}
 #conversation .tline.tool .pfx{color:var(--term-cyan)}
 #conversation .tline.tool .tbody{color:#93a8a9}
-#conversation .tline.tool_result{margin-left:2em}
-#conversation .tline.tool_result summary{display:flex;gap:.7em;cursor:pointer;list-style:none}
-#conversation .tline.tool_result summary::-webkit-details-marker{display:none}
-#conversation .tline.tool_result summary .pfx{color:var(--term-faint)}
-#conversation .tline.tool_result summary .tbody{color:var(--term-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#conversation .tline.tool_result pre{margin:2px 0 6px 0;max-height:260px;overflow:auto;color:#9aa1ad;font-family:var(--term-mono);font-size:11px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+#conversation .tline.tool_result,#conversation .tline.proc-step{margin-left:1.5em}
+#conversation .tline.tool_result summary,#conversation .tline.proc-step summary{display:flex;gap:.7em;align-items:baseline;cursor:pointer;list-style:none}
+#conversation .tline.tool_result summary::-webkit-details-marker,#conversation .tline.proc-step summary::-webkit-details-marker{display:none}
+#conversation .tline.tool_result summary .pfx,#conversation .tline.proc-step summary .pfx{color:var(--term-faint)}
+#conversation .tline.tool_result summary .tbody,#conversation .tline.proc-step summary .tbody{color:var(--term-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#conversation .tline.tool_result pre,#conversation .tline.proc-step pre,.proc-content{margin:3px 0 8px 0;max-height:280px;overflow:auto;color:#9aa1ad;font-family:var(--term-mono);font-size:11px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere;border-left:2px solid var(--term-line);padding-left:8px}
 #conversation .tline.history .pfx,#conversation .tline.history .tbody{color:var(--term-faint);font-size:11px}
 #conversation .cursor{color:var(--term-green);animation:termblink 1.1s steps(1) infinite}
 @keyframes termblink{50%{opacity:0}}
 #conversation.cleared .tline{display:none}
 #conversation .term-empty .tline{color:var(--term-faint)}
 #jump-latest{font-family:var(--term-mono);font-size:10px;background:var(--term-bg2);color:var(--term-dim);border:1px solid var(--term-line);border-radius:5px;box-shadow:none}
-#prompt-form{flex:none;display:flex;align-items:flex-start;gap:8px;background:var(--term-bg);border-top:1px solid var(--term-line);padding:10px 14px;max-height:40%;overflow:auto}
-#prompt-form .ps1{flex:none;font-family:var(--term-mono);font-size:12px;line-height:1.65;color:var(--term-green);padding-top:8px;user-select:none}
-#prompt-form #message{flex:1;min-width:0;min-height:40px;max-height:180px;font-family:var(--term-mono);font-size:12px;line-height:1.65;color:var(--term-text);background:transparent;border:0;border-radius:0;padding:8px 0;resize:vertical;caret-color:var(--term-green)}
+
+/* Two-column diff view */
+.diff-view{margin:6px 0;border:1px solid var(--term-line);background:var(--term-bg2);font-family:var(--term-mono);font-size:11px;width:100%;max-width:100%}
+.diff-header{display:flex;justify-content:space-between;align-items:center;padding:4px 10px;background:#161920;border-bottom:1px solid var(--term-line);color:var(--term-dim);font-size:11px}
+.diff-file{color:var(--term-text);font-weight:600}
+.diff-hunk-info{color:var(--term-cyan);font-size:10px}
+.diff-cols-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);background:#14171d;border-bottom:1px solid var(--term-line);color:var(--term-faint);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+.diff-col-title{padding:3px 8px}
+.diff-col-title:first-child{border-right:1px solid var(--term-line)}
+.diff-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);background:var(--term-bg)}
+.diff-cell{display:flex;align-items:baseline;padding:1px 6px;min-width:0;white-space:pre;overflow-x:auto;line-height:1.55;scrollbar-width:thin}
+.diff-cell.left{border-right:1px solid var(--term-line)}
+.diff-cell.del{background:rgba(217,112,94,.14);color:#ea8a78}
+.diff-cell.add{background:rgba(127,176,105,.14);color:#8ed077}
+.diff-cell.empty{background:rgba(255,255,255,.015)}
+.diff-cell.context{color:var(--term-dim)}
+.diff-ln{flex:none;width:3.2em;padding-right:6px;text-align:right;color:var(--term-faint);user-select:none;-webkit-user-select:none}
+.diff-txt{flex:1;min-width:0}
+
+#prompt-form{flex:none;display:flex;align-items:center;gap:8px;background:var(--term-bg);border-top:1px solid var(--term-line);padding:10px 14px;max-height:40%;overflow:auto}
+#prompt-form .ps1{flex:none;font-family:var(--term-mono);font-size:12px;line-height:1.65;color:var(--term-green);padding-top:2px;user-select:none;font-weight:600}
+#prompt-form #message{flex:1;min-width:0;min-height:36px;max-height:180px;font-family:var(--term-mono);font-size:12px;line-height:1.65;color:var(--term-text);background:transparent;border:0;border-radius:0;padding:6px 0;resize:vertical;caret-color:var(--term-green)}
 #prompt-form #message:focus{outline:none}
 #prompt-form #message::placeholder{color:var(--term-faint)}
 #prompt-form:focus-within{border-top-color:#3a414d}
 #prompt-form #send{flex:none;font-family:var(--term-mono);font-size:11px;background:transparent;border:1px solid #3f5a3c;border-radius:5px;color:var(--term-green);padding:8px 14px;min-width:0}
 #prompt-form #send:disabled{opacity:.4}
 #prompt-form #stop{flex:none;font-family:var(--term-mono);font-size:11px;background:transparent;border:1px solid #5c4443;border-radius:5px;color:var(--term-red);padding:8px 12px}
-#prompt-form .term-check{flex:none;margin:0 0 8px;font-family:var(--term-mono);font-size:10px;color:var(--term-faint);gap:4px}
+#prompt-form .term-check{flex:none;margin:0;font-family:var(--term-mono);font-size:10px;color:var(--term-faint);gap:4px}
 #prompt-form .term-check input{accent-color:var(--term-green);margin:0}
 #side-digest{font-family:var(--term-mono);font-size:10px;color:var(--term-dim);display:flex;gap:.6em;padding:8px 16px;border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap}
 #side-digest .pfx{color:var(--term-green)}
