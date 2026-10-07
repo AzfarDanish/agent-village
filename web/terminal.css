@@ -1063,3 +1063,130 @@ aside {
 #side-digest span.dim { color: var(--ag-text-dim) !important; }
 #digest-text { color: var(--ag-text-muted) !important; }
 #notice { color: var(--ag-red) !important; }
+
+/* --------------------------------------------------------------------------
+   Folder Selection Dialog (Antigravity Theme)
+   -------------------------------------------------------------------------- */
+.ag-dialog {
+  background: var(--ag-bg) !important;
+  border: 1px solid var(--ag-border) !important;
+  color: var(--ag-text) !important;
+  padding: 16px !important;
+  border-radius: 12px !important;
+  width: min(480px, 92vw) !important;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.5) !important;
+}
+.ag-dialog::backdrop {
+  background: rgba(0,0,0,0.4) !important;
+  backdrop-filter: blur(4px) !important;
+}
+.ag-dialog .dialog-head {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 12px !important;
+}
+.ag-dialog .dialog-head h2 {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.3px !important;
+  color: var(--ag-text) !important;
+  margin: 0 !important;
+}
+.ag-dialog .dialog-head button {
+  background: transparent !important;
+  border: none !important;
+  color: var(--ag-text-muted) !important;
+  font-size: 18px !important;
+  padding: 4px 8px !important;
+  box-shadow: none !important;
+}
+.ag-dialog .dialog-head button:hover {
+  color: var(--ag-text) !important;
+}
+.ag-dialog .path-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+.ag-dialog .path-row input {
+  flex: 1 !important;
+  background: var(--ag-surface) !important;
+  border: 1px solid var(--ag-border) !important;
+  color: var(--ag-text) !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  min-width: 0 !important;
+}
+.ag-dialog .path-row input:focus {
+  border-color: var(--ag-border-focus) !important;
+  outline: none !important;
+}
+.ag-dialog .path-row button {
+  background: var(--ag-surface) !important;
+  border: 1px solid var(--ag-border) !important;
+  color: var(--ag-text) !important;
+  padding: 8px 14px !important;
+  font-size: 12px !important;
+}
+.ag-dialog .path-row button:hover {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: #3b4356 !important;
+}
+.ag-dialog #folder-list {
+  height: 250px !important;
+  margin: 12px 0 !important;
+  gap: 2px !important;
+  background: var(--ag-surface) !important;
+  border: 1px solid var(--ag-border) !important;
+  border-radius: 8px !important;
+  padding: 4px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: auto !important;
+}
+.ag-dialog .folder-item {
+  background: transparent !important;
+  border: none !important;
+  color: var(--ag-text) !important;
+  padding: 8px 12px !important;
+  text-align: left !important;
+  font-family: var(--ag-font-sans, system-ui, sans-serif) !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  box-shadow: none !important;
+  width: 100% !important;
+}
+.ag-dialog .folder-item:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+  transform: none !important;
+}
+.ag-dialog .dialog-actions {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 10px !important;
+  margin-top: 16px !important;
+}
+.ag-dialog .dialog-actions button {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid var(--ag-border) !important;
+  color: var(--ag-text) !important;
+  padding: 8px 16px !important;
+  font-weight: 500 !important;
+  font-size: 12px !important;
+}
+.ag-dialog .dialog-actions button.primary {
+  background: #4a88e8 !important;
+  color: #fff !important;
+  border-color: #4a88e8 !important;
+}
+.ag-dialog .dialog-actions button:hover:not(.primary) {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+.ag-dialog .dialog-actions button.primary:hover {
+  filter: brightness(1.1) !important;
+}

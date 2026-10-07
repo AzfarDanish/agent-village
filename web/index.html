@@ -38,6 +38,6 @@
 <div id="custom-fields" hidden><label for="base-url">API base URL</label><input id="base-url" type="url" placeholder="http://localhost:11434/v1"><label for="key-env">API key environment variable</label><input id="key-env" placeholder="OPENAI_API_KEY"><small>Chat-only endpoint · keys stay on the server.</small></div></div></details>
 </form>
 </aside></main>
-<dialog id="folder-dialog"><form method="dialog"><div class="dialog-head"><h2>Choose your project</h2><button aria-label="Close folder picker">×</button></div></form><label for="folder-path">Folder path</label><div class="path-row"><input id="folder-path"><button id="folder-go">Go</button></div><p id="folder-error" role="alert"></p><div id="folder-list"></div><div class="dialog-actions"><button id="folder-up">↑ Parent</button><button class="primary" id="folder-select">Use this folder</button></div></dialog>
+<dialog id="folder-dialog" class="ag-dialog"><form method="dialog"><div class="dialog-head"><h2>Select Folder</h2><button aria-label="Close folder picker">×</button></div></form><div class="path-row"><button id="folder-up" title="Up to parent">↑</button><input id="folder-path" placeholder="Folder path..."><button id="folder-go">Go</button></div><p id="folder-error" role="alert"></p><div id="folder-list"></div><div class="dialog-actions"><button type="button" id="folder-cancel">Cancel</button><button class="primary" id="folder-select">Use this folder</button></div></dialog>
 <script type="module" src="ui.js"></script>
 </body></html>

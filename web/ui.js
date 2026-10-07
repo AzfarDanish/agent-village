@@ -877,12 +877,13 @@ let folderSeq=0;
 async function browse(path){
   const mine=++folderSeq;
   $('folder-error').textContent='';
-  try{const data=await api('folders?'+new URLSearchParams({path}));if(mine!==folderSeq)return;folderPath=data.path;folderParent=data.parent;$('folder-path').value=data.path;$('folder-list').replaceChildren(...data.folders.map(f=>{const b=node('button','▱  '+f.name);b.onclick=()=>browse(f.path);return b;}));}
+  try{const data=await api('folders?'+new URLSearchParams({path}));if(mine!==folderSeq)return;folderPath=data.path;folderParent=data.parent;$('folder-path').value=data.path;$('folder-list').replaceChildren(...data.folders.map(f=>{const b=node('button','📁  '+f.name, 'folder-item');b.onclick=()=>browse(f.path);return b;}));}
   catch(error){if(mine!==folderSeq)return;$('folder-error').textContent=error.message;}
 }
 $('browse').onclick=()=>{$('folder-dialog').showModal();browse($('repo').value);};
 $('folder-go').onclick=()=>browse($('folder-path').value);$('folder-path').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();browse(e.target.value);}};
 $('folder-up').onclick=()=>browse(folderParent);
+$('folder-cancel').onclick=()=>$('folder-dialog').close();
 $('folder-select').onclick=()=>{if(!folderPath)return;addRepo(folderPath);$('repo').value=folderPath;$('folder-dialog').close();scopeChange();};
 function addRepo(path){if(![...$('repo').options].some(o=>o.value===path)){const opt=node('option',path.split('/').pop()||path);opt.value=path;opt.title=path;$('repo').append(opt);}}
 
