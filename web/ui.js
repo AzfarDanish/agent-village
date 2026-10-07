@@ -891,6 +891,7 @@ $('folder-select').onclick=()=>{
     $('repo').value=folderPath;
   } else {
     folderData.folders.filter(f => f.is_repo).forEach(f => addRepo(f.path));
+    removeRepo(folderPath);
     const first = folderData.folders.find(f => f.is_repo);
     if(first) $('repo').value=first.path;
   }
@@ -898,6 +899,7 @@ $('folder-select').onclick=()=>{
   scopeChange();
 };
 function addRepo(path){if(![...$('repo').options].some(o=>o.value===path)){const opt=node('option',path.split('/').pop()||path);opt.value=path;opt.title=path;$('repo').append(opt);}}
+function removeRepo(path){const opt=[...$('repo').options].find(o=>o.value===path);if(opt)opt.remove();}
 
 $('message').addEventListener('input', function() {
   this.style.height = 'auto';
