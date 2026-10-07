@@ -26,13 +26,16 @@ def folder(value):
     return path
 
 
+def is_project(p):
+    return (p / '.git').is_dir() or (p / 'package.json').exists() or (p / 'requirements.txt').exists() or (p / 'pyproject.toml').exists() or (p / 'Cargo.toml').exists() or (p / 'go.mod').exists()
+
 def folders(value):
     path = folder(value)
     children = []
     for child in sorted(path.iterdir(), key=lambda p: p.name.lower()):
         if not child.name.startswith('.') and child.is_dir():
-            children.append({'name': child.name, 'path': str(child.resolve())})
-    return {'path': str(path), 'parent': str(path.parent), 'folders': children[:500]}
+            children.append({'name': child.name, 'path': str(child.resolve()), 'is_repo': is_project(child)})
+    return {'path': str(path), 'parent': str(path.parent), 'folders': children[:500], 'is_repo': is_project(path)}
 
 
 def opencode_history(repo):
