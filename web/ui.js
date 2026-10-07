@@ -4,7 +4,7 @@ const colors = ['#688fae','#cf925c','#a17da2','#719568'];
 const saved = key => {try{return localStorage.getItem('village-'+key)||'';}catch{return '';}};
 const save = (key,value) => {try{localStorage.setItem('village-'+key,value);}catch{/* private browser */}};
 let world, snapshot, catalog=[], scope=0, lastJob=null, activeJob=null, conversationKey='', selectedRole='CODER';
-let folderPath='', folderParent='', folderData=null, bubbles=[], seen=new Set(), firstPoll=true;
+let folderPath='', folderParent='', folderData=null, lastFolderRoot='', bubbles=[], seen=new Set(), firstPoll=true;
 const emptyConversation=$('conversation').firstElementChild.cloneNode(true);
 const renderedMessages=new Map();let followingOutput=true;
 function resetConversation(){renderedMessages.clear();$('conversation').replaceChildren(emptyConversation.cloneNode(true));followingOutput=true;$('jump-latest').hidden=true;}
@@ -880,12 +880,13 @@ async function browse(path){
   try{const data=await api('folders?'+new URLSearchParams({path}));if(mine!==folderSeq)return;folderData=data;folderPath=data.path;folderParent=data.parent;$('folder-path').value=data.path;$('folder-list').replaceChildren(...data.folders.map(f=>{const b=node('button','📁  '+f.name, 'folder-item');b.onclick=()=>browse(f.path);return b;}));}
   catch(error){if(mine!==folderSeq)return;$('folder-error').textContent=error.message;}
 }
-$('browse').onclick=()=>{$('folder-dialog').showModal();browse($('repo').value);};
+$('browse').onclick=()=>{$('folder-dialog').showModal();browse(lastFolderRoot || $('repo').value);};
 $('folder-go').onclick=()=>browse($('folder-path').value);$('folder-path').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();browse(e.target.value);}};
 $('folder-up').onclick=()=>browse(folderParent);
 $('folder-cancel').onclick=()=>$('folder-dialog').close();
 $('folder-select').onclick=()=>{
   if(!folderPath || !folderData)return;
+  lastFolderRoot = folderPath;
   if (folderData.is_repo || !folderData.folders.some(f => f.is_repo)) {
     addRepo(folderPath);
     $('repo').value=folderPath;
